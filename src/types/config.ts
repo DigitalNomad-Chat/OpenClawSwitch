@@ -231,4 +231,44 @@ export interface InstallDownloadEvent {
 // ============================================================================
 
 /** 页面 ID */
-export type PageId = 'home' | 'install' | 'config' | 'ssh' | 'tools'
+export type PageId = 'home' | 'install' | 'config' | 'bindings' | 'ssh' | 'tools'
+
+// ============================================================================
+// Bindings 相关类型
+// ============================================================================
+
+/** Peer 类型 */
+export type PeerKind = 'dm' | 'group'
+
+/** 渠道类型 */
+export type ChannelId = 'feishu' | 'telegram' | 'discord' | 'slack' | 'whatsapp' | 'imessage' | 'wecom' | 'qq' | 'dingtalk'
+
+/** 绑定信息 */
+export interface BindingInfo {
+  index: number
+  agentId: string
+  channel: ChannelId | string
+  peerKind: PeerKind | string
+  peerId: string
+}
+
+/** 绑定请求 */
+export interface BindingRequest {
+  agentId: string
+  channel: string
+  peerKind: PeerKind | string
+  peerId: string
+}
+
+/** Agent 选项 */
+export interface AgentOption {
+  id: string
+  name: string
+}
+
+/** 渠道选项 */
+export interface ChannelOption {
+  id: ChannelId | string
+  name: string
+  icon?: string
+}

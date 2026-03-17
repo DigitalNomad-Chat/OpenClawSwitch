@@ -12,6 +12,7 @@ use std::time::Duration;
 mod ssh;
 mod ssh_profiles;
 mod installer;
+mod bindings;
 
 // ============================================================================
 // 类型定义说明
@@ -879,6 +880,12 @@ fn main() {
             add_model_to_provider,
             remove_model_from_provider,
             fetch_provider_models,
+            // 绑定管理
+            bindings::parse_bindings,
+            bindings::add_binding,
+            bindings::remove_binding,
+            bindings::update_binding,
+            bindings::get_agent_options,
             // OpenClaw 工具
             restart_gateway,
             health_check_gateway,

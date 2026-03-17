@@ -16,6 +16,7 @@ import StatusDashboard from './components/pages/StatusDashboard.vue'
 import InstallPage from './components/pages/InstallPage.vue'
 import ConfigPage from './components/pages/ConfigPage.vue'
 import QuickSetupGuide from './components/pages/QuickSetupGuide.vue'
+import BindingsPage from './components/pages/BindingsPage.vue'
 import MessageChannelsPage from './components/pages/MessageChannelsPage.vue'
 import DiagnosticsPage from './components/pages/DiagnosticsPage.vue'
 import SshConnectModal from './components/SshConnectModal.vue'
@@ -178,6 +179,10 @@ const navMeta: Record<NavPage, { title: string; subtitle: string }> = {
   'ai-config': {
     title: '模型配置',
     subtitle: '保存配置文件并调整模型路由。',
+  },
+  bindings: {
+    title: '绑定管理',
+    subtitle: '配置 Agent 与消息渠道的绑定关系。',
   },
   diagnostics: {
     title: '服务诊断',
@@ -1404,7 +1409,21 @@ onUnmounted(() => {
                 />
                 <div v-else class="oc-panel p-6">
                   <h3 class="text-lg font-semibold" style="color: var(--oc-text-primary);">模型配置不可用</h3>
-                  <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">请先在“安装与接入”中完成安装。</p>
+                  <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">请先在"安装与接入"中完成安装。</p>
+                </div>
+              </div>
+
+              <div v-else-if="activeNav === 'bindings'" class="oc-page-root">
+                <BindingsPage
+                  v-if="envStatus && openclawInstalled"
+                  class="oc-page-root"
+                  :show-toast="showToast"
+                  :env-mode="currentEnv.mode"
+                  :env-ssh-connected="sshConnected"
+                />
+                <div v-else class="oc-panel p-6">
+                  <h3 class="text-lg font-semibold" style="color: var(--oc-text-primary);">绑定管理不可用</h3>
+                  <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">请先在"安装与接入"中完成安装。</p>
                 </div>
               </div>
 
