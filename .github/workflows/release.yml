@@ -108,7 +108,7 @@ jobs:
 
             > **Note**: The macOS app is signed with an ad-hoc certificate. On first launch, right-click the app and select "Open", or run:
             > ```bash
-            > xattr -c /Applications/OpenClawSwitch.app
+            > xattr -c /Applications/Clawlite.app
             > ```
 
             ## Changes

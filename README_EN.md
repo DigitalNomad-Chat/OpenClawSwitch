@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/logo.png" alt="OpenClawSwitch Logo" width="144">
+  <img src="docs/logo.png" alt="Clawlite Logo" width="144">
 </p>
 
-<h1 align="center">OpenClawSwitch</h1>
+<h1 align="center">Clawlite</h1>
 
 <p align="center">
   English | <a href="README.md">简体中文</a>
@@ -13,18 +13,18 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-1.png" alt="OpenClawSwitch Main Interface" width="800">
+  <img src="docs/screenshot-1.png" alt="Clawlite Main Interface" width="800">
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-2.png" alt="OpenClawSwitch Features" width="800">
+  <img src="docs/screenshot-2.png" alt="Clawlite Features" width="800">
 </p>
 
 ---
 
 ## Overview
 
-OpenClawSwitch is a visual configuration manager designed for **OpenClaw**, built with Tauri + Vue 3. Manage your AI model configurations effortlessly through a clean and intuitive graphical interface - no more manual JSON editing.
+Clawlite is a visual configuration manager designed for **OpenClaw**, built with Tauri + Vue 3. Manage your AI model configurations effortlessly through a clean and intuitive graphical interface - no more manual JSON editing.
 
 ## Features
 
@@ -39,25 +39,25 @@ OpenClawSwitch is a visual configuration manager designed for **OpenClaw**, buil
 
 ### Download Release
 
-Go to [Releases](https://github.com/RongleCat/OpenClawSwitch/releases) to download the installer for your platform:
+Go to [Releases](https://github.com/RongleCat/Clawlite/releases) to download the installer for your platform:
 
 | Platform | File |
 |----------|------|
-| Windows | `OpenClawSwitch_x.x.x_x64-setup.exe` or `.msi` |
-| macOS (Apple Silicon) | `OpenClawSwitch_x.x.x_aarch64.dmg` |
-| macOS (Intel) | `OpenClawSwitch_x.x.x_x64.dmg` |
+| Windows | `Clawlite_x.x.x_x64-setup.exe` or `.msi` |
+| macOS (Apple Silicon) | `Clawlite_x.x.x_aarch64.dmg` |
+| macOS (Intel) | `Clawlite_x.x.x_x64.dmg` |
 
 > **macOS Users**: Since the app is not signed, run this command before first launch:
 > ```bash
-> xattr -c /Applications/OpenClawSwitch.app
+> xattr -c /Applications/Clawlite.app
 > ```
 
 ### Build from Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/RongleCat/OpenClawSwitch.git
-cd OpenClawSwitch
+git clone https://github.com/RongleCat/Clawlite.git
+cd Clawlite
 
 # Install dependencies
 npm install

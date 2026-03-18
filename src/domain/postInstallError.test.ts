@@ -20,7 +20,7 @@ describe('formatGatewayInstallError', () => {
   })
 
   it('adds conflict hint when same-name service is not managed by nssm', () => {
-    const input = '网关服务安装失败: 检测到已存在同名 Windows 服务 openclaw-gateway，但它不是由 OpenClawSwitch 管理'
+    const input = '网关服务安装失败: 检测到已存在同名 Windows 服务 openclaw-gateway，但它不是由 Clawlite 管理'
     const output = formatGatewayInstallError(input)
     expect(output).toContain('同名 Windows 服务')
     expect(output).toContain('手动处理')

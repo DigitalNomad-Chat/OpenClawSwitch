@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/logo.png" alt="OpenClawSwitch Logo" width="144">
+  <img src="docs/logo.png" alt="Clawlite Logo" width="144">
 </p>
 
-<h1 align="center">OpenClawSwitch</h1>
+<h1 align="center">Clawlite</h1>
 
 <p align="center">
   <a href="README_EN.md">English</a> | 简体中文
@@ -13,18 +13,18 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-1.png" alt="OpenClawSwitch 主界面" width="800">
+  <img src="docs/screenshot-1.png" alt="Clawlite 主界面" width="800">
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-2.png" alt="OpenClawSwitch 功能展示" width="800">
+  <img src="docs/screenshot-2.png" alt="Clawlite 功能展示" width="800">
 </p>
 
 ---
 
 ## 简介
 
-OpenClawSwitch 是一款专为 **OpenClaw** 设计的可视化配置管理工具，基于 Tauri + Vue 3 构建。通过简洁直观的图形界面，让您轻松管理 AI 模型配置，无需手动编辑 JSON 文件。
+Clawlite 是一款专为 **OpenClaw** 设计的可视化配置管理工具，基于 Tauri + Vue 3 构建。通过简洁直观的图形界面，让您轻松管理 AI 模型配置，无需手动编辑 JSON 文件。
 
 ## 功能特性
 
@@ -39,25 +39,25 @@ OpenClawSwitch 是一款专为 **OpenClaw** 设计的可视化配置管理工具
 
 ### 下载 Release
 
-前往 [Releases](https://github.com/RongleCat/OpenClawSwitch/releases) 页面下载对应平台的安装包：
+前往 [Releases](https://github.com/RongleCat/Clawlite/releases) 页面下载对应平台的安装包：
 
 | 平台 | 文件 |
 |------|------|
-| Windows | `OpenClawSwitch_x.x.x_x64-setup.exe` 或 `.msi` |
-| macOS (Apple Silicon) | `OpenClawSwitch_x.x.x_aarch64.dmg` |
-| macOS (Intel) | `OpenClawSwitch_x.x.x_x64.dmg` |
+| Windows | `Clawlite_x.x.x_x64-setup.exe` 或 `.msi` |
+| macOS (Apple Silicon) | `Clawlite_x.x.x_aarch64.dmg` |
+| macOS (Intel) | `Clawlite_x.x.x_x64.dmg` |
 
 > **macOS 用户注意**：由于应用未签名，首次运行需要在终端执行：
 > ```bash
-> xattr -c /Applications/OpenClawSwitch.app
+> xattr -c /Applications/Clawlite.app
 > ```
 
 ### 从源码构建
 
 ```bash
 # 克隆仓库
-git clone https://github.com/RongleCat/OpenClawSwitch.git
-cd OpenClawSwitch
+git clone https://github.com/RongleCat/Clawlite.git
+cd Clawlite
 
 # 安装依赖
 npm install

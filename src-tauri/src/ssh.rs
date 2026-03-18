@@ -503,7 +503,7 @@ fn ssh_run_gateway_command(
 
     let cmd = format!(
         r#"
-tmp=$(mktemp /tmp/openclawswitch-gateway-{}.XXXXXX 2>/dev/null || echo /tmp/openclawswitch-gateway-{}.log)
+tmp=$(mktemp /tmp/clawlite-gateway-{}.XXXXXX 2>/dev/null || echo /tmp/clawlite-gateway-{}.log)
 openclaw gateway {} >"$tmp" 2>&1
 code=$?
 echo "__EXIT__$code"

@@ -1,7 +1,7 @@
 {
-  "name": "openclawswitch",
+  "name": "clawlite",
   "version": "2.0.0",
-  "description": "OpenClawSwitch - OpenClaw configuration manager built with Tauri + Vue 3",
+  "description": "Clawlite - OpenClaw configuration manager built with Tauri + Vue 3",
   "type": "module",
   "scripts": {
     "dev": "vite",

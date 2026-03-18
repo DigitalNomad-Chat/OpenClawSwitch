@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
 use std::thread;
+#[cfg(target_os = "windows")]
 use std::time::Duration;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -523,7 +524,7 @@ mod installer_tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time before unix epoch")
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("openclawswitch-{name}-{unique}"));
+        let dir = std::env::temp_dir().join(format!("clawlite-{name}-{unique}"));
         std::fs::create_dir_all(&dir).expect("create temp dir");
         dir
     }
@@ -612,7 +613,7 @@ mod installer_tests {
 
     #[test]
     fn relaunch_as_admin_command_uses_current_exe_and_runas() {
-        let exe_path = Path::new(r"C:\Program Files\OpenClaw Switch\openclawswitch.exe");
+        let exe_path = Path::new(r"C:\Program Files\Clawlite\clawlite.exe");
         let args = build_windows_relaunch_as_admin_command(exe_path);
 
         assert_eq!(args[0], "-NoProfile");
@@ -621,7 +622,7 @@ mod installer_tests {
         assert_eq!(args[3], "-Command");
         assert!(args[4].contains("Start-Process"));
         assert!(args[4].contains("-Verb RunAs"));
-        assert!(args[4].contains("openclawswitch.exe"));
+        assert!(args[4].contains("clawlite.exe"));
     }
 
     #[test]
@@ -864,10 +865,12 @@ fn managed_node_root() -> Result<PathBuf, String> {
     Ok(managed_runtime_root()?.join("node"))
 }
 
+#[cfg(target_os = "windows")]
 fn managed_git_root() -> Result<PathBuf, String> {
     Ok(managed_runtime_root()?.join("git"))
 }
 
+#[cfg(target_os = "windows")]
 fn managed_git_install_dir() -> Result<PathBuf, String> {
     Ok(managed_git_root()?.join("mingit"))
 }
@@ -1323,6 +1326,7 @@ fn shell_quote(value: &str) -> String {
     }
 }
 
+#[cfg(target_os = "windows")]
 fn decode_command_output(bytes: &[u8]) -> String {
     let decoded = if bytes.len() >= 2 && bytes.len() % 2 == 0 {
         let odd_nulls = bytes.iter().skip(1).step_by(2).filter(|byte| **byte == 0).count();
@@ -2016,6 +2020,7 @@ fn extract_fnm_zip(
 }
 
 /// 配置 fnm PATH
+#[cfg(target_os = "windows")]
 fn extract_zip_archive_to_dir<R: std::io::Read + std::io::Seek>(
     archive: &mut zip::ZipArchive<R>,
     target_dir: &Path,
@@ -2100,6 +2105,7 @@ fn append_windows_user_path_entry(current: &str, dir: &Path) -> Option<String> {
     }
 }
 
+#[cfg(target_os = "windows")]
 fn windows_git_path_entries(install_dir: &Path) -> Vec<PathBuf> {
     let candidates = [
         install_dir.to_path_buf(),
@@ -2118,12 +2124,14 @@ fn windows_git_path_entries(install_dir: &Path) -> Vec<PathBuf> {
     entries
 }
 
+#[cfg(target_os = "windows")]
 fn windows_git_install_dir_has_binary(path: &Path) -> bool {
     windows_git_path_entries(path)
         .into_iter()
         .any(|entry| entry.join("git.exe").is_file())
 }
 
+#[cfg(target_os = "windows")]
 fn find_directory_containing_windows_git_binary(root: &Path) -> Option<PathBuf> {
     if windows_git_install_dir_has_binary(root) {
         return Some(root.to_path_buf());
@@ -3585,7 +3593,7 @@ pub async fn install_channel_extension(app: AppHandle, channel_id: String) -> Re
         );
 
         let temp_dir = std::env::temp_dir()
-            .join(format!("openclawswitch-extension-{}-{}", target_dir_name, now_ms()));
+            .join(format!("clawlite-extension-{}-{}", target_dir_name, now_ms()));
         std::fs::create_dir_all(&temp_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
         emit_channel_extension_log(
             &app,

@@ -2,7 +2,7 @@
 set -e
 
 echo "========================================"
-echo "OpenClawSwitch - 构建脚本"
+echo "Clawlite - 构建脚本"
 echo "========================================"
 echo ""
 
@@ -39,7 +39,7 @@ echo ""
 echo "========================================"
 echo "可执行文件位置:"
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    echo "src-tauri/target/release/bundle/macos/OpenClawSwitch.app"
+    echo "src-tauri/target/release/bundle/macos/Clawlite.app"
 else
     echo "src-tauri/target/release/openclaw-manager"
 fi

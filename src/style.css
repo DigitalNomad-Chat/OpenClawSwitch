@@ -1,6 +1,27 @@
+/* ═══════════════════════════════════════════════════════════
+   导入设计系统 - Design System Imports
+   "深海极光" - Flowing Intelligence Design System
+   ═══════════════════════════════════════════════════════════ */
+
+@import './assets/css/typography.css';
+@import './assets/css/colors.css';
+@import './assets/css/spacing.css';
+@import './assets/css/effects.css';
+@import './assets/css/animations.css';
+@import './assets/css/components.css';
+
+/* ═══════════════════════════════════════════════════════════
+   Tailwind CSS
+   ═══════════════════════════════════════════════════════════ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════
+   主题变量系统 - Legacy Theme Variables
+   保留兼容性，逐步迁移到新设计系统
+   ═══════════════════════════════════════════════════════════ */
 
 @layer base {
   :root {
@@ -16,12 +37,15 @@
     --oc-card: #ffffff;
     --oc-card-elevated: #f7f8fb;
     --oc-card-border: rgba(125, 132, 154, 0.26);
-    --oc-card-border-strong: rgba(213, 96, 73, 0.22);
+    /* ═══════════════════════════════════════════════════════════
+       统一蓝绿色主题 - Teal/Cyan Accent
+       ═══════════════════════════════════════════════════════════ */
+    --oc-card-border-strong: rgba(20, 184, 166, 0.3);
     --oc-shadow-window: 0 16px 40px rgba(78, 88, 123, 0.14);
     --oc-shadow-card: 0 14px 30px rgba(102, 112, 146, 0.15);
     --oc-shadow-popover: 0 20px 38px rgba(58, 65, 93, 0.22);
     --oc-shadow-surface: 0 14px 30px rgba(102, 112, 146, 0.15);
-    --oc-shadow-control: 0 10px 22px rgba(196, 88, 67, 0.16);
+    --oc-shadow-control: 0 10px 22px rgba(13, 148, 136, 0.2);
     --oc-page-pad-top: 10px;
     --oc-page-pad-x: 16px;
     --oc-page-pad-bottom: 16px;
@@ -29,18 +53,21 @@
     --oc-text-secondary: #656d7d;
     --oc-text-muted: #848c9f;
     --oc-text-quiet: #a2a8b7;
-    --oc-accent: #d56049;
-    --oc-accent-soft: rgba(213, 96, 73, 0.06);
+    /* ═══════════════════════════════════════════════════════════
+       蓝绿色主题 - 统一为 Teal 色系
+       ═══════════════════════════════════════════════════════════ */
+    --oc-accent: #14b8a6;
+    --oc-accent-soft: rgba(20, 184, 166, 0.1);
     --oc-danger: #bf4a46;
     --oc-success: #3f985f;
     --oc-warning: #c68a32;
     --oc-divider: rgba(122, 129, 151, 0.2);
     --oc-divider-soft: rgba(122, 129, 151, 0.12);
     --oc-item-hover: rgba(100, 108, 130, 0.1);
-    --oc-item-active: rgba(213, 96, 73, 0.06);
+    --oc-item-active: rgba(20, 184, 166, 0.1);
     --oc-input-bg: #ffffff;
     --oc-input-border: rgba(124, 132, 156, 0.26);
-    --oc-input-focus: rgba(213, 96, 73, 0.28);
+    --oc-input-focus: rgba(20, 184, 166, 0.3);
     --radius-lg: 16px;
     --radius-md: 12px;
     --radius-sm: 10px;
@@ -59,28 +86,34 @@
     --oc-card: #1b2029;
     --oc-card-elevated: #212733;
     --oc-card-border: rgba(133, 147, 177, 0.3);
-    --oc-card-border-strong: rgba(255, 138, 116, 0.26);
+    /* ═══════════════════════════════════════════════════════════
+       统一蓝绿色主题 - Teal/Cyan Accent (深色模式)
+       ═══════════════════════════════════════════════════════════ */
+    --oc-card-border-strong: rgba(45, 212, 191, 0.4);
     --oc-shadow-window: 0 20px 60px rgba(0, 0, 0, 0.55);
     --oc-shadow-card: 0 14px 28px rgba(0, 0, 0, 0.45);
     --oc-shadow-popover: 0 22px 40px rgba(0, 0, 0, 0.55);
     --oc-shadow-surface: 0 14px 28px rgba(0, 0, 0, 0.45);
-    --oc-shadow-control: 0 10px 22px rgba(112, 33, 20, 0.24);
+    --oc-shadow-control: 0 10px 22px rgba(19, 120, 110, 0.3);
     --oc-text-primary: #f1f3f9;
     --oc-text-secondary: #bac2d5;
     --oc-text-muted: #8d95aa;
     --oc-text-quiet: #70788e;
-    --oc-accent: #ff8a74;
-    --oc-accent-soft: rgba(255, 138, 116, 0.1);
+    /* ═══════════════════════════════════════════════════════════
+       蓝绿色主题 - 深色模式使用更亮的青色
+       ═══════════════════════════════════════════════════════════ */
+    --oc-accent: #2dd4bf;
+    --oc-accent-soft: rgba(45, 212, 191, 0.15);
     --oc-danger: #ff8d8d;
     --oc-success: #6fc68d;
     --oc-warning: #f0b560;
     --oc-divider: rgba(126, 136, 162, 0.3);
     --oc-divider-soft: rgba(126, 136, 162, 0.17);
     --oc-item-hover: rgba(163, 174, 202, 0.11);
-    --oc-item-active: rgba(255, 138, 116, 0.09);
+    --oc-item-active: rgba(45, 212, 191, 0.15);
     --oc-input-bg: #181d27;
     --oc-input-border: rgba(132, 145, 177, 0.3);
-    --oc-input-focus: rgba(255, 138, 116, 0.34);
+    --oc-input-focus: rgba(45, 212, 191, 0.4);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -97,28 +130,34 @@
       --oc-card: #1b2029;
       --oc-card-elevated: #212733;
       --oc-card-border: rgba(133, 147, 177, 0.3);
-      --oc-card-border-strong: rgba(255, 138, 116, 0.26);
+      /* ═══════════════════════════════════════════════════════════
+         统一蓝绿色主题 - Teal/Cyan Accent (深色模式)
+         ═══════════════════════════════════════════════════════════ */
+      --oc-card-border-strong: rgba(45, 212, 191, 0.4);
       --oc-shadow-window: 0 20px 60px rgba(0, 0, 0, 0.55);
       --oc-shadow-card: 0 14px 28px rgba(0, 0, 0, 0.45);
       --oc-shadow-popover: 0 22px 40px rgba(0, 0, 0, 0.55);
       --oc-shadow-surface: 0 14px 28px rgba(0, 0, 0, 0.45);
-      --oc-shadow-control: 0 10px 22px rgba(112, 33, 20, 0.24);
+      --oc-shadow-control: 0 10px 22px rgba(19, 120, 110, 0.3);
       --oc-text-primary: #f1f3f9;
       --oc-text-secondary: #bac2d5;
       --oc-text-muted: #8d95aa;
       --oc-text-quiet: #70788e;
-      --oc-accent: #ff8a74;
-      --oc-accent-soft: rgba(255, 138, 116, 0.1);
+      /* ═══════════════════════════════════════════════════════════
+         蓝绿色主题 - 深色模式使用更亮的青色
+         ═══════════════════════════════════════════════════════════ */
+      --oc-accent: #2dd4bf;
+      --oc-accent-soft: rgba(45, 212, 191, 0.15);
       --oc-danger: #ff8d8d;
       --oc-success: #6fc68d;
       --oc-warning: #f0b560;
       --oc-divider: rgba(126, 136, 162, 0.3);
       --oc-divider-soft: rgba(126, 136, 162, 0.17);
       --oc-item-hover: rgba(163, 174, 202, 0.11);
-      --oc-item-active: rgba(255, 138, 116, 0.09);
+      --oc-item-active: rgba(45, 212, 191, 0.15);
       --oc-input-bg: #181d27;
       --oc-input-border: rgba(132, 145, 177, 0.3);
-      --oc-input-focus: rgba(255, 138, 116, 0.34);
+      --oc-input-focus: rgba(45, 212, 191, 0.4);
     }
   }
 
@@ -138,7 +177,7 @@
     margin: 0;
     background: var(--oc-bg);
     color: var(--oc-text-primary);
-    font-family: 'SF Pro Display', 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', -apple-system, sans-serif;
+    font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -172,76 +211,97 @@
   }
 
   .oc-sidebar {
-    width: 246px;
+    width: 260px;
     flex-shrink: 0;
-    border-right: 1px solid var(--oc-sidebar-border);
-    background: linear-gradient(180deg, color-mix(in srgb, var(--oc-sidebar) 92%, #fff 8%), var(--oc-sidebar));
+    border-right: 1px solid var(--oc-divider-soft);
+    background: var(--bg-secondary);
     display: flex;
     flex-direction: column;
     min-height: 0;
   }
 
   .oc-sidebar-header {
-    height: 48px;
-    padding: 0 14px;
+    height: 56px;
+    padding: 0 var(--spacing-5);
     display: flex;
     align-items: center;
     border-bottom: 1px solid var(--oc-divider-soft);
+    background: var(--bg-surface-elevated);
+    backdrop-filter: var(--blur-md);
   }
 
   .oc-sidebar-body {
     min-height: 0;
     overflow: auto;
-    padding: 12px 12px 16px;
+    padding: var(--spacing-4);
   }
 
   .oc-sidebar-footer {
     border-top: 1px solid var(--oc-divider-soft);
-    padding: 10px 14px;
+    padding: var(--spacing-3) var(--spacing-5);
     display: flex;
-    gap: 12px;
+    gap: var(--spacing-3);
     color: var(--oc-text-muted);
   }
 
   .oc-sidebar-title {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
     color: var(--oc-text-muted);
-    margin: 12px 8px 6px;
+    margin: var(--spacing-3) var(--spacing-2) var(--spacing-1_5);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .oc-sidebar-note {
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: var(--oc-text-quiet);
-    margin: 2px 8px 10px;
-    line-height: 1.35;
+    margin: var(--spacing-0_5) var(--spacing-2) var(--spacing-2_5);
+    line-height: var(--leading-relaxed);
   }
 
   .oc-sidebar-item {
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 9px 10px;
-    border-radius: 11px;
+    gap: var(--spacing-2_5);
+    padding: var(--spacing-2_5) var(--spacing-3);
+    border-radius: var(--radius-xl);
     border: 1px solid transparent;
     background: transparent;
     color: var(--oc-text-secondary);
-    font-size: 15px;
-    font-weight: 520;
-    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+    transition: all var(--duration-200) var(--ease-smooth);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .oc-sidebar-item::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--gradient-primary);
+    opacity: 0;
+    transition: opacity var(--duration-200) var(--ease-smooth);
   }
 
   .oc-sidebar-item:hover {
-    background: var(--oc-item-hover);
     border-color: var(--oc-divider-soft);
     color: var(--oc-text-primary);
+    transform: translateX(2px);
   }
 
   .oc-sidebar-item-active {
     background: var(--oc-item-active);
-    border-color: var(--oc-divider);
-    color: var(--oc-text-primary);
+    border-color: var(--primary-200);
+    color: var(--primary-700);
+    font-weight: var(--font-weight-semibold);
+    box-shadow: var(--shadow-primary-sm);
+  }
+
+  .oc-sidebar-item-active::before {
+    opacity: 0.08;
   }
 
   .oc-sidebar-separator {
@@ -263,15 +323,32 @@
 
   .oc-topbar {
     flex-shrink: 0;
-    height: 48px;
+    height: 56px;
     border-bottom: 1px solid var(--oc-divider-soft);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 0 14px;
-    background: color-mix(in srgb, var(--oc-window) 86%, transparent 14%);
-    backdrop-filter: blur(14px);
+    gap: var(--spacing-3);
+    padding: 0 var(--spacing-5);
+    background: var(--bg-surface-elevated);
+    backdrop-filter: var(--blur-lg);
+    position: relative;
+    z-index: 10;
+  }
+
+  .oc-topbar::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      var(--primary-200) 50%,
+      transparent 100%
+    );
+    opacity: 0.3;
   }
 
   .oc-topbar-tabs {
@@ -419,43 +496,79 @@
 
   .oc-panel {
     border: 1px solid var(--oc-card-border);
-    background: var(--oc-card);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--oc-shadow-surface);
+    background: var(--bg-primary);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-md);
+    transition: all var(--duration-300) var(--ease-smooth);
+  }
+
+  .oc-panel:hover {
+    box-shadow: var(--shadow-lg);
   }
 
   .oc-subpanel {
     border: 1px solid var(--oc-divider);
-    background: color-mix(in srgb, var(--oc-card) 84%, var(--oc-card-elevated) 16%);
-    border-radius: var(--radius-md);
-    box-shadow: var(--oc-shadow-surface);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
   }
 
   .oc-card-soft {
     border: 1px solid var(--oc-divider-soft);
-    background: color-mix(in srgb, var(--oc-card-elevated) 86%, transparent 14%);
-    border-radius: var(--radius-md);
-    box-shadow: var(--oc-shadow-surface);
+    background: var(--bg-surface);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--duration-200) var(--ease-smooth);
+  }
+
+  .oc-card-soft:hover {
+    border-color: var(--primary-200);
+    background: var(--bg-surface-elevated);
   }
 
   .oc-preview-card {
-    border-radius: 18px;
+    border-radius: var(--radius-2xl);
     border: 1px solid var(--oc-card-border);
-    background: color-mix(in srgb, var(--oc-card) 88%, var(--oc-card-elevated) 12%);
-    box-shadow: var(--oc-shadow-surface);
+    background: var(--bg-primary);
+    box-shadow: var(--shadow-md);
     min-height: 320px;
     overflow: visible;
-    transition: transform 180ms ease, border-color 180ms ease;
+    transition: all var(--duration-300) var(--ease-smooth);
+    position: relative;
+  }
+
+  .oc-preview-card::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--gradient-primary);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity var(--duration-300) var(--ease-smooth);
+    pointer-events: none;
   }
 
   .oc-preview-card:hover {
-    transform: translateY(-1px);
-    border-color: var(--oc-card-border-strong);
+    transform: translateY(-4px);
+    border-color: var(--primary-300);
+    box-shadow: var(--shadow-primary-md);
+  }
+
+  .oc-preview-card:hover::before {
+    opacity: 0.5;
   }
 
   .oc-preview-card-active {
-    border-color: color-mix(in srgb, var(--oc-accent) 60%, #ffffff 40%);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--oc-accent) 22%, transparent 78%), var(--oc-shadow-surface);
+    border-color: var(--primary-400);
+    box-shadow: var(--shadow-primary-lg), 0 0 0 3px rgba(20, 184, 166, 0.1);
+  }
+
+  .oc-preview-card-active::before {
+    opacity: 1;
   }
 
   .oc-blank-block {
@@ -473,31 +586,39 @@
 
   .oc-mini-btn,
   .oc-toolbar-btn {
-    height: 34px;
-    min-width: 34px;
-    border-radius: 11px;
+    height: 36px;
+    min-width: 36px;
+    border-radius: var(--radius-lg);
     border: 1px solid var(--oc-divider);
-    background: color-mix(in srgb, var(--oc-card) 80%, transparent 20%);
+    background: var(--bg-surface);
     color: var(--oc-text-secondary);
-    transition: all 140ms ease;
+    transition: all var(--duration-200) var(--ease-smooth);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 0 10px;
+    gap: var(--spacing-2);
+    padding: 0 var(--spacing-2_5);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+    box-shadow: var(--shadow-xs);
+    position: relative;
+    overflow: hidden;
   }
 
   .oc-mini-btn:hover,
   .oc-toolbar-btn:hover {
-    border-color: var(--oc-card-border-strong);
-    color: var(--oc-text-primary);
-    background: color-mix(in srgb, var(--oc-card) 92%, var(--oc-item-hover) 8%);
+    border-color: var(--primary-300);
+    color: var(--primary-600);
+    background: var(--bg-primary);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
   }
 
   .oc-mini-btn:disabled,
   .oc-toolbar-btn:disabled {
-    opacity: 0.55;
+    opacity: 0.5;
     cursor: not-allowed;
+    transform: none;
   }
 
   .oc-pill {
@@ -542,27 +663,42 @@
   .oc-select,
   .oc-textarea {
     width: 100%;
-    border-radius: 11px;
+    border-radius: var(--radius-lg);
     border: 1px solid var(--oc-input-border);
     background: var(--oc-input-bg);
     color: var(--oc-text-primary);
-    height: 40px;
-    padding: 0 12px;
-    font-size: 14px;
-    transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+    height: 42px;
+    padding: 0 var(--spacing-3);
+    font-size: var(--text-sm);
+    transition: all var(--duration-200) var(--ease-smooth);
+    font-family: var(--font-body);
+  }
+
+  .oc-input::placeholder,
+  .oc-textarea::placeholder {
+    color: var(--oc-text-quiet);
+  }
+
+  .oc-input:focus,
+  .oc-select:focus,
+  .oc-textarea:focus {
+    outline: none;
+    border-color: var(--primary-400);
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15), var(--shadow-sm);
+    background: var(--bg-primary);
   }
 
   .oc-textarea {
     min-height: 140px;
     height: auto;
-    padding: 10px 12px;
+    padding: var(--spacing-3);
     resize: vertical;
-    line-height: 1.5;
+    line-height: var(--leading-relaxed);
   }
 
   .oc-select {
     cursor: pointer;
-    padding-right: 34px;
+    padding-right: var(--spacing-8);
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
@@ -578,6 +714,7 @@
 
   .oc-select:disabled {
     cursor: not-allowed;
+    opacity: 0.6;
   }
 
   .oc-select::-ms-expand {
@@ -588,23 +725,22 @@
     width: auto;
     max-width: min(320px, 100%);
     min-width: 260px;
-    height: 32px;
+    height: 36px;
     border-color: var(--oc-card-border);
-    background-color: color-mix(in srgb, var(--oc-card) 92%, var(--oc-card-elevated) 8%);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--oc-card) 75%, transparent 25%),
-      0 1px 2px rgba(82, 92, 120, 0.08);
-    padding: 0 36px 0 12px;
-    font-size: 13px;
+    background-color: var(--bg-surface);
+    box-shadow: var(--shadow-xs);
+    padding: 0 var(--spacing-8) 0 var(--spacing-3);
+    font-size: var(--text-xs);
   }
 
   .oc-channel-account-select:hover:not(:disabled) {
-    border-color: var(--oc-card-border-strong);
-    background-color: color-mix(in srgb, var(--oc-card) 96%, var(--oc-accent-soft) 4%);
+    border-color: var(--primary-300);
+    background-color: var(--bg-primary);
+    box-shadow: var(--shadow-sm);
   }
 
   .oc-channel-account-select option {
-    background: var(--oc-card);
+    background: var(--bg-primary);
     color: var(--oc-text-primary);
   }
 
@@ -628,11 +764,12 @@
     border-width: 1px;
     border-style: solid;
     padding: 0 3px;
-    transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    transition: all var(--duration-200) var(--ease-smooth);
   }
 
   .oc-channel-toggle:hover:not(:disabled) {
-    box-shadow: 0 8px 18px rgba(82, 92, 120, 0.14);
+    box-shadow: var(--shadow-sm);
+    transform: scale(1.02);
   }
 
   .oc-channel-toggle-thumb {
@@ -642,88 +779,112 @@
     width: 18px;
     border-radius: 999px;
     border: 1px solid var(--oc-card-border);
-    background: var(--oc-card);
-    box-shadow: 0 2px 8px rgba(55, 64, 88, 0.18);
-    transition: transform 140ms ease;
-  }
-
-  .oc-input::placeholder,
-  .oc-textarea::placeholder {
-    color: var(--oc-text-quiet);
-  }
-
-  .oc-input:focus,
-  .oc-select:focus,
-  .oc-textarea:focus {
-    outline: none;
-    border-color: var(--oc-input-focus);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--oc-input-focus) 24%, transparent 76%);
+    background: var(--bg-primary);
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--duration-200) var(--ease-spring);
   }
 
   .oc-dropdown-menu {
     border: 1px solid var(--oc-card-border);
-    border-radius: 12px;
-    background: var(--oc-card);
-    box-shadow: var(--oc-shadow-popover);
-    padding: 6px;
+    border-radius: var(--radius-xl);
+    background: var(--bg-primary);
+    box-shadow: var(--shadow-xl);
+    padding: var(--spacing-1_5);
+    backdrop-filter: var(--blur-lg);
+    animation: dropdownFadeIn var(--duration-200) var(--ease-out);
+  }
+
+  @keyframes dropdownFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 
   .oc-dropdown-item {
     width: 100%;
     border: 1px solid transparent;
-    border-radius: 10px;
-    padding: 8px 10px;
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-2) var(--spacing-2_5);
     text-align: left;
-    font-size: 13px;
+    font-size: var(--text-sm);
     color: var(--oc-text-secondary);
     background: transparent;
-    transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+    transition: all var(--duration-150) var(--ease-smooth);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
   }
 
   .oc-dropdown-item:hover {
-    border-color: var(--oc-divider-soft);
-    background: var(--oc-item-hover);
+    border-color: var(--primary-200);
+    background: var(--bg-secondary);
     color: var(--oc-text-primary);
+    transform: translateX(2px);
   }
 
   .oc-dropdown-item-active {
-    border-color: var(--oc-card-border-strong);
+    border-color: var(--primary-300);
     background: var(--oc-item-active);
-    color: var(--oc-text-primary);
+    color: var(--primary-700);
+    font-weight: var(--font-weight-semibold);
   }
 
   .oc-dropdown-separator {
     height: 1px;
-    margin: 6px 2px;
+    margin: var(--spacing-1_5) var(--spacing-1);
     background: var(--oc-divider-soft);
   }
 
   .oc-dropdown-empty {
-    padding: 8px 10px;
-    font-size: 12px;
+    padding: var(--spacing-3);
+    font-size: var(--text-xs);
     color: var(--oc-text-muted);
+    text-align: center;
   }
 
   .oc-modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(7, 10, 18, 0.42);
-    backdrop-filter: blur(4px);
+    background: rgba(7, 10, 18, 0.5);
+    backdrop-filter: var(--blur-md);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 70;
-    padding: 16px;
+    padding: var(--spacing-4);
+    animation: modalFadeIn var(--duration-200) var(--ease-out);
+  }
+
+  @keyframes modalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .oc-modal-card {
     width: min(100%, 760px);
     max-height: calc(100vh - 40px);
     overflow: auto;
-    border-radius: 18px;
+    border-radius: var(--radius-2xl);
     border: 1px solid var(--oc-card-border);
-    background: var(--oc-card);
-    box-shadow: var(--oc-shadow-popover);
+    background: var(--bg-primary);
+    box-shadow: var(--shadow-2xl);
+    animation: modalSlideUp var(--duration-300) var(--ease-out);
+  }
+
+  @keyframes modalSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 
   .oc-channel-install-modal {
@@ -820,5 +981,71 @@
       flex-direction: column;
       align-items: flex-start;
     }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   仪表盘布局 - Dashboard Layout
+   新的矩阵式仪表盘布局系统
+   ═══════════════════════════════════════════════════════════ */
+
+.dashboard-shell {
+  /* 移除侧边栏，使用全屏仪表盘布局 */
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.dashboard-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.dashboard-main {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  background: var(--oc-window);
+}
+
+.dashboard-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--spacing-6);
+  width: 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   仪表盘响应式 - Dashboard Responsive
+   ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 1200px) {
+  .dashboard-content {
+    max-width: 100%;
+    padding: var(--spacing-4);
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-shell {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .dashboard-content {
+    padding: var(--spacing-3);
+    padding-bottom: calc(var(--spacing-3) + 80px);
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-content {
+    padding: var(--spacing-2);
+    padding-bottom: calc(var(--spacing-2) + 80px);
   }
 }

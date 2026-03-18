@@ -5,7 +5,7 @@ import {
   type QuickSetupStepId,
 } from './quickSetupGuide'
 
-export const QUICK_SETUP_SESSION_STORAGE_KEY = 'openclawswitch.quick-setup.session'
+export const QUICK_SETUP_SESSION_STORAGE_KEY = 'clawlite.quick-setup.session'
 export const QUICK_SETUP_SESSION_VERSION = 1
 export const QUICK_SETUP_SESSION_TTL_MS = 24 * 60 * 60 * 1000
 

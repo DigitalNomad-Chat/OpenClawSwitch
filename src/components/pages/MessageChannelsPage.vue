@@ -308,7 +308,7 @@ const channelTabsMap: Record<ChannelId, Array<{ id: ChannelConfigPanel; label: s
   ]
 }
 
-const storageKey = 'openclawswitch-message-channels'
+const storageKey = 'clawlite-message-channels'
 
 const defaultForm = (): ChannelForm => ({
   token: '',

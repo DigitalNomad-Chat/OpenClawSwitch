@@ -8,7 +8,7 @@ echo "🚀 Building macOS universal binary..."
 
 # Read version from package.json
 VERSION=$(node -p "require('./package.json').version")
-APP_NAME="OpenClawSwitch"
+APP_NAME="Clawlite"
 
 # Build .app bundle only (skip DMG to avoid Tauri 1.x bug)
 npm run tauri build -- --target universal-apple-darwin --bundles app

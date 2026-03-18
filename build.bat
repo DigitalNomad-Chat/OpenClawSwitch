@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo OpenClawSwitch - Windows 构建脚本
+echo Clawlite - Windows 构建脚本
 echo ========================================
 echo.
 

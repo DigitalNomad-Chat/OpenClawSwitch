@@ -25,6 +25,11 @@ import Button from './components/ui/Button.vue'
 import Card from './components/ui/Card.vue'
 import Input from './components/ui/Input.vue'
 import Toast from './components/ui/Toast.vue'
+
+// 新的仪表盘组件
+import DashboardGrid from './components/dashboard/DashboardGrid.vue'
+import TopBar from './components/dashboard/TopBar.vue'
+import DockBar from './components/dashboard/DockBar.vue'
 import { deriveAppState } from './domain/appState'
 import { NAV_ITEMS, type NavPage } from './domain/navigation'
 import { isPrimaryModelPlaceholder } from './domain/configValidation'
@@ -83,7 +88,7 @@ const showFingerprintDialog = ref(false)
 const sshConnected = ref(false)
 const sshFingerprint = ref<FingerprintInfo | null>(null)
 const sshFingerprintCallback = ref<(() => void) | null>(null)
-const themeStorageKey = 'openclawswitch.theme.mode'
+const themeStorageKey = 'clawlite.theme.mode'
 const browserDefaultProfile = 'openclaw'
 const isWindows = navigator.userAgent.toLowerCase().includes('windows')
 const themeMode = ref<ThemeMode>('system')
@@ -108,6 +113,12 @@ const lastActionFailed = ref(false)
 const pendingToolId = ref<string | null>(null)
 const dashboardOpening = ref(false)
 const environmentRefreshing = ref(false)
+
+// 绑定和渠道统计
+const bindingsCount = ref(0)
+const activeBindingsCount = ref(0)
+const channelsEnabled = ref(0)
+const totalChannels = ref(0)
 
 const loading = ref(false)
 const loadingMessage = ref('加载中...')
@@ -488,8 +499,15 @@ const syncConfigSignals = async () => {
     primaryModelValid.value = false
     gatewayReachable.value = false
     configFilePath.value = ''
+    // 重置统计数据
+    bindingsCount.value = 0
+    activeBindingsCount.value = 0
+    channelsEnabled.value = 0
+    totalChannels.value = 0
     return
   }
+
+  let config: OpenClawConfig | null = null
 
   try {
     if (currentEnv.value.mode === 'ssh' && sshConnected.value) {
@@ -499,14 +517,15 @@ const syncConfigSignals = async () => {
         primaryModelValid.value = false
       } else {
         const raw = await invoke<string>('ssh_read_file', { path: results[0].path })
-        const remoteConfig = JSON.parse(raw) as OpenClawConfig
-        const primary = remoteConfig.agents?.defaults?.model?.primary
+        config = JSON.parse(raw) as OpenClawConfig
+        const primary = config.agents?.defaults?.model?.primary
         configLoaded.value = true
         primaryModelValid.value = !isPrimaryModelPlaceholder(primary)
       }
       configFilePath.value = ''
     } else {
-      const [config, info] = await invoke<[OpenClawConfig, ConfigFileInfo]>('load_default_config')
+      const [configData, info] = await invoke<[OpenClawConfig, ConfigFileInfo]>('load_default_config')
+      config = configData
       const primary = config.agents?.defaults?.model?.primary
       configLoaded.value = true
       primaryModelValid.value = !isPrimaryModelPlaceholder(primary)
@@ -516,6 +535,64 @@ const syncConfigSignals = async () => {
     configLoaded.value = false
     primaryModelValid.value = false
     configFilePath.value = ''
+    config = null
+  }
+
+  // 解析绑定和渠道统计数据
+  if (config) {
+    try {
+      // 解析绑定数据
+      const bindings = await invoke<any[]>('parse_bindings', { config })
+      bindingsCount.value = bindings.length
+      // 统计活跃绑定（有 peerId 的视为活跃）
+      activeBindingsCount.value = bindings.filter((b: any) => b.peerId && b.peerId.length > 0).length
+    } catch {
+      bindingsCount.value = 0
+      activeBindingsCount.value = 0
+    }
+
+    try {
+      // 解析渠道数据
+      const channels = config.channels as Record<string, unknown> | undefined
+      if (channels && typeof channels === 'object') {
+        const channelKeys = Object.keys(channels).filter(key => {
+          // 过滤掉 connector 类型的特殊键
+          return !key.includes('-connector') && key !== 'dingtalk-connector'
+        })
+        totalChannels.value = channelKeys.length
+
+        // 统计已启用的渠道（有配置信息的渠道）
+        let enabledCount = 0
+        for (const key of channelKeys) {
+          const channel = channels[key]
+          if (channel && typeof channel === 'object' && !Array.isArray(channel)) {
+            const channelObj = channel as Record<string, unknown>
+            // 检查是否有有效的配置（不同渠道有不同的必填字段）
+            const hasValidConfig =
+              ('appId' in channelObj && 'appSecret' in channelObj) || // 飞书、企业微信等
+              ('token' in channelObj) || // Telegram、Discord 等
+              ('botToken' in channelObj) || // QQ机器人
+              ('enabled' in channelObj && channelObj.enabled === true) // 通用启用标记
+
+            if (hasValidConfig) {
+              enabledCount++
+            }
+          }
+        }
+        channelsEnabled.value = enabledCount
+      } else {
+        totalChannels.value = 0
+        channelsEnabled.value = 0
+      }
+    } catch {
+      channelsEnabled.value = 0
+      totalChannels.value = 0
+    }
+  } else {
+    bindingsCount.value = 0
+    activeBindingsCount.value = 0
+    channelsEnabled.value = 0
+    totalChannels.value = 0
   }
 
   try {
@@ -553,7 +630,12 @@ const syncGatewayServiceInstallState = async () => {
 }
 
 const checkEnvironment = async () => {
-  loading.value = true
+  // 只在非初始加载时显示 loading
+  const initialCheck = envStatus.value === null
+  if (!initialCheck) {
+    loading.value = true
+  }
+
   try {
     if (currentEnv.value.mode === 'ssh') {
       if (!sshConnected.value) {
@@ -562,9 +644,9 @@ const checkEnvironment = async () => {
         primaryModelValid.value = false
         gatewayReachable.value = false
         gatewayServiceInstalled.value = true
-        return
+      } else {
+        envStatus.value = await invoke<EnvironmentStatus>('ssh_check_environment')
       }
-      envStatus.value = await invoke<EnvironmentStatus>('ssh_check_environment')
     } else {
       envStatus.value = await invoke<EnvironmentStatus>('check_environment')
     }
@@ -577,7 +659,8 @@ const checkEnvironment = async () => {
 
     await syncConfigSignals()
     await syncGatewayServiceInstallState()
-  } catch {
+  } catch (error) {
+    console.error('环境检测失败:', error)
     envStatus.value = null
     configLoaded.value = false
     primaryModelValid.value = false
@@ -1108,8 +1191,9 @@ const handleQuickSetupClose = () => {
 onMounted(async () => {
   loadThemeMode()
   document.addEventListener('click', handleGlobalClick)
-  await loadSshProfiles()
-  await checkEnvironment()
+  // 异步执行环境检测，不阻塞初始渲染
+  loadSshProfiles().catch(console.error)
+  checkEnvironment().catch(console.error)
 })
 
 onUnmounted(() => {
@@ -1118,484 +1202,427 @@ onUnmounted(() => {
 })
 </script>
 
+
 <template>
-  <div class="oc-app-shell">
-    <div class="oc-app-window">
-      <aside v-if="shouldShowSidebar" class="oc-sidebar">
-        <div class="oc-sidebar-header">
-          <div class="flex items-center gap-2.5">
-            <img
-              :src="appIcon"
-              alt="OpenClawSwitch"
-              class="h-7 w-7 rounded-[8px] border"
-              style="border-color: var(--oc-divider-soft);"
-            />
-            <div class="truncate text-sm font-semibold" style="color: var(--oc-text-primary);">OpenClawSwitch</div>
-          </div>
-        </div>
+  <div class="oc-app-shell dashboard-shell">
+    <div class="dashboard-container">
+      <!-- 顶部命令栏 -->
+      <TopBar
+        :active-nav="activeNav"
+        :theme-mode="themeMode"
+        @navigate="navigateTo"
+        @theme-change="applyThemeMode"
+      />
 
-        <div class="oc-sidebar-body oc-main-scroll">
-          <div class="space-y-1">
-            <button
-              v-for="item in NAV_ITEMS"
-              :key="item.id"
-              class="oc-sidebar-item"
-              :class="{ 'oc-sidebar-item-active': activeNav === item.id }"
-              type="button"
-              @click="navigateTo(item.id)"
-            >
-              <span class="truncate">{{ item.label }}</span>
-            </button>
-          </div>
+      <!-- 主内容区域 -->
+      <div class="dashboard-main">
+        <!-- 仪表盘矩阵（仅在overview页面且非门禁状态时显示） -->
+        <DashboardGrid
+          v-if="!isGateActive && !quickSetupForcedOpen && activeNav === 'overview'"
+          :active-nav="activeNav"
+          :env-status="envStatus"
+          :gateway-reachable="gatewayReachable"
+          :config-loaded="configLoaded"
+          :config-file-path="configFilePath"
+          :primary-model-valid="primaryModelValid"
+          :openclaw-installed="openclawInstalled"
+          :gateway-service-installed="gatewayServiceInstalled"
+          :theme-mode="themeMode"
+          :env-mode="currentEnv.mode"
+          :ssh-connected="sshConnected"
+          :bindings-count="bindingsCount"
+          :active-bindings-count="activeBindingsCount"
+          :channels-enabled="channelsEnabled"
+          :total-channels="totalChannels"
+          @navigate="navigateTo"
+        />
 
-          <div
-            class="mt-4 rounded-[12px] border p-3 text-xs"
-            style="border-color: var(--oc-divider-soft); background: color-mix(in srgb, var(--oc-card-elevated) 86%, transparent 14%); color: var(--oc-text-muted);"
-          >
-            <div class="mb-1 flex items-center justify-between">
-              <span>当前状态</span>
-              <span style="color: var(--oc-text-primary);">{{ stateTextMap[appState] }}</span>
-            </div>
-            <div class="mb-1 flex items-center justify-between">
-              <span>OpenClaw</span>
-              <span style="color: var(--oc-text-primary);">{{ globalVersionText }}</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span>配置状态</span>
-              <span class="inline-flex items-center gap-1" style="color: var(--oc-text-primary);">
-                <span>{{ configStatusText }}</span>
-                <button
-                  v-if="showOpenConfigFileAction"
-                  type="button"
-                  class="inline-flex h-4 w-4 items-center justify-center rounded-[6px] transition-opacity hover:opacity-100"
-                  style="color: var(--oc-text-muted); opacity: 0.72;"
-                  title="打开配置文件"
-                  aria-label="打开配置文件"
-                  @click="openConfigFile"
-                >
-                  <ExternalLink class="h-3.5 w-3.5" />
-                </button>
-              </span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <section class="oc-content-shell">
-        <header class="oc-topbar">
-          <div class="min-w-0">
-            <p class="truncate text-sm font-semibold" style="color: var(--oc-text-primary);">
-              {{ topbarTitle }}
-            </p>
-          </div>
-
-          <div class="oc-topbar-actions">
-            <button
-              class="oc-toolbar-btn h-8 w-8 !px-0"
-              type="button"
-              aria-label="theme-switcher"
-              :title="themeButtonTitle"
-              @click="cycleThemeMode"
-            >
-              <component :is="themeModeIcon" class="h-4 w-4" />
-            </button>
-            <div class="relative env-dropdown-container">
-              <button class="oc-toolbar-btn h-8 min-w-[180px] justify-start" type="button" aria-label="environment-switcher" @click="showEnvDropdown = !showEnvDropdown">
-                <component
-                  :is="currentEnv.mode === 'local' ? Monitor : Wifi"
-                  class="h-4 w-4"
-                  :style="{ color: currentEnv.mode === 'local' ? 'var(--oc-accent)' : sshConnected ? 'var(--oc-success)' : 'var(--oc-text-muted)' }"
-                />
-                <span class="truncate text-sm">{{ currentEnv.label }}</span>
-                <ChevronDown class="ml-auto h-4 w-4" :class="{ 'rotate-180': showEnvDropdown }" />
-              </button>
-
-              <div
-                v-if="showEnvDropdown"
-                class="oc-dropdown-menu absolute right-0 top-full z-40 mt-2 w-64"
-              >
-                <button
-                  v-for="(env, index) in environments"
-                  :key="`${env.label}-${index}`"
-                  class="oc-dropdown-item flex items-center gap-2"
-                  :class="{ 'oc-dropdown-item-active': index === currentEnvIndex }"
-                  type="button"
-                  @click="selectEnvironment(index)"
-                >
-                  <component :is="env.mode === 'local' ? Monitor : Wifi" class="h-4 w-4" />
-                  <span class="truncate">{{ env.label }}</span>
-                </button>
-
-                <div class="oc-dropdown-separator" />
-                <button
-                  class="oc-dropdown-item flex items-center gap-2"
-                  style="color: var(--oc-accent);"
-                  type="button"
-                  aria-label="add-ssh-environment"
-                  @click="addSshEnvironment"
-                >
-                  <Settings2 class="h-4 w-4" />
-                  添加 SSH 连接
-                </button>
-              </div>
-            </div>
-
-            <button
-              class="oc-toolbar-btn h-8 w-8 !px-0"
-              type="button"
-              aria-label="refresh-environment"
-              :disabled="refreshEnvironmentButtonState.disabled"
-              :aria-busy="refreshEnvironmentButtonState.loading"
-              @click="refreshEnvironment"
-            >
-              <component :is="refreshEnvironmentButtonState.loading ? Loader2 : RefreshCw" :class="['h-4 w-4', refreshEnvironmentButtonState.loading ? 'animate-spin' : '']" />
-            </button>
-            <button
-              v-if="showDashboardButton"
-              class="oc-toolbar-btn h-8 px-3 text-sm"
-              type="button"
-              aria-label="open-dashboard"
-              :disabled="dashboardButtonState.disabled"
-              :aria-busy="dashboardButtonState.loading"
-              @click="openDashboard"
-            >
-              <component :is="dashboardButtonState.loading ? Loader2 : ExternalLink" :class="['h-4 w-4', dashboardButtonState.loading ? 'animate-spin' : '']" />
-              {{ dashboardButtonLabel }}
-            </button>
-          </div>
-        </header>
-
-        <main class="oc-main-area">
-          <div class="h-full oc-main-scroll">
+        <!-- 门禁状态内容 -->
+        <div v-else-if="isGateActive || quickSetupForcedOpen" class="dashboard-content">
+          <div class="oc-main-scroll-page">
+            <!-- 环境选择界面 -->
             <div
-              class="oc-main-scroll-page"
-              :class="{
-                'oc-main-scroll-page-fixed': fixedMainContentLayout
-              }"
+              v-if="isGateActive && gateState === 'NO_TARGET'"
+              class="oc-panel p-6"
+              style="min-height: 400px; display: flex; flex-direction: column; justify-content: center; align-items: center;"
             >
-              <template v-if="isGateActive || quickSetupForcedOpen">
-                <div
-                  v-if="isGateActive && (gateState === 'NO_TARGET' || (gateState === 'NEED_INSTALL' && targetMode === 'ssh') || (gateState === 'NEED_CONFIG' && targetMode === 'ssh'))"
-                  class="oc-panel p-6"
-                >
-                <h3 class="text-xl font-semibold" style="color: var(--oc-text-primary);">
-                  {{
-                    gateState === 'NO_TARGET'
-                      ? '选择运行环境'
-                      : gateState === 'NEED_INSTALL'
-                        ? '完成安装'
-                        : '完成模型配置'
-                  }}
+              <div style="text-align: center; max-width: 500px;">
+                <h3 class="text-2xl font-semibold mb-4" style="color: var(--oc-text-primary);">
+                  🎯 欢迎使用 Clawlite
                 </h3>
-                <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">
-                  {{
-                    gateState === 'NO_TARGET'
-                      ? '请选择本地或 SSH 作为唯一运行环境入口。'
-                      : gateState === 'NEED_INSTALL'
-                        ? '当前环境已确定，请继续完成安装。'
-                        : '环境已安装，下一步是完成配置并验证生效。'
-                  }}
+                <p class="text-base mb-8" style="color: var(--oc-text-secondary);">
+                  首次使用需要选择运行环境。请选择本地或 SSH 作为唯一运行环境入口。
                 </p>
 
-                <div v-if="gateState === 'NO_TARGET'" class="mt-4 grid gap-3 md:grid-cols-2">
+                <div class="grid gap-4" style="grid-template-columns: repeat(2, 1fr); width: 100%;">
                   <button
                     type="button"
-                    class="rounded-[12px] border p-4 text-left transition-colors"
+                    class="rounded-xl border p-6 text-left transition-all hover:scale-105 hover:shadow-lg"
                     :style="{
-                      borderColor: targetMode === 'local' ? 'var(--oc-card-border-strong)' : 'var(--oc-card-border)',
-                      background: targetMode === 'local' ? 'var(--oc-item-active)' : 'var(--oc-card-elevated)'
+                      borderColor: targetMode === 'local' ? 'var(--primary-400)' : 'var(--oc-card-border)',
+                      background: targetMode === 'local' ? 'var(--primary-50)' : 'var(--oc-card-elevated)'
                     }"
                     @click="chooseLocalTarget"
                   >
-                    <p class="text-base font-semibold" style="color: var(--oc-text-primary);">安装在本地</p>
-                    <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">使用本机环境安装并运行 OpenClaw。</p>
+                    <div class="flex items-center gap-3 mb-3">
+                      <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background: var(--primary-100);">
+                        💻
+                      </div>
+                      <p class="text-lg font-semibold" style="color: var(--oc-text-primary);">安装在本地</p>
+                    </div>
+                    <p class="text-sm" style="color: var(--oc-text-muted);">使用本机环境安装并运行 OpenClaw</p>
                   </button>
 
                   <button
                     type="button"
-                    class="rounded-[12px] border p-4 text-left transition-colors"
+                    class="rounded-xl border p-6 text-left transition-all hover:scale-105 hover:shadow-lg"
                     :style="{
-                      borderColor: targetMode === 'ssh' ? 'var(--oc-card-border-strong)' : 'var(--oc-card-border)',
-                      background: targetMode === 'ssh' ? 'var(--oc-item-active)' : 'var(--oc-card-elevated)'
+                      borderColor: targetMode === 'ssh' ? 'var(--primary-400)' : 'var(--oc-card-border)',
+                      background: targetMode === 'ssh' ? 'var(--primary-50)' : 'var(--oc-card-elevated)'
                     }"
                     @click="chooseSshTarget"
                   >
-                    <p class="text-base font-semibold" style="color: var(--oc-text-primary);">连接 SSH 环境</p>
-                    <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">后续所有操作基于该 SSH 环境执行。</p>
+                    <div class="flex items-center gap-3 mb-3">
+                      <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background: var(--primary-100);">
+                        🔌
+                      </div>
+                      <p class="text-lg font-semibold" style="color: var(--oc-text-primary);">连接 SSH 环境</p>
+                    </div>
+                    <p class="text-sm" style="color: var(--oc-text-muted);">后续所有操作基于该 SSH 环境执行</p>
                   </button>
                 </div>
+              </div>
+            </div>
 
-                <div v-else-if="gateState === 'NEED_INSTALL' && targetMode === 'ssh'" class="mt-4 space-y-3">
-                  <div class="rounded-[12px] border px-3 py-2 text-sm" style="border-color: var(--oc-card-border); background: var(--oc-card-elevated); color: var(--oc-text-secondary);">
-                    当前环境：<strong style="color: var(--oc-text-primary);">{{ targetMode === 'ssh' ? 'SSH' : '本地' }}</strong>
-                  </div>
+            <!-- 安装/配置界面 -->
+            <div
+              v-else-if="isGateActive && (gateState === 'NEED_INSTALL' || gateState === 'NEED_CONFIG')"
+              class="oc-panel p-6"
+            >
+              <h3 class="text-xl font-semibold" style="color: var(--oc-text-primary);">
+                {{
+                  gateState === 'NEED_INSTALL'
+                    ? '完成安装'
+                    : '完成模型配置'
+                }}
+              </h3>
+              <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">
+                {{
+                  gateState === 'NEED_INSTALL'
+                    ? '当前环境已确定，请继续完成安装。'
+                    : '环境已安装，下一步是完成配置并验证生效。'
+                }}
+              </p>
 
-                  <div v-if="targetMode === 'ssh'" class="rounded-[12px] border px-3 py-3 text-sm" style="border-color: var(--oc-card-border); background: var(--oc-card-elevated); color: var(--oc-text-secondary);">
-                    <p>1. 先通过右上角环境入口建立 SSH 连接</p>
-                    <p class="mt-1">2. 在远程执行安装后，点击“重新检测环境”</p>
-                    <div class="mt-3 flex flex-wrap gap-2">
-                      <button class="oc-toolbar-btn h-9 px-3" type="button" @click="showSshModal = true">
-                        连接 SSH
-                      </button>
-                      <button class="oc-toolbar-btn h-9 px-3" type="button" @click="checkEnvironment">
-                        重新检测环境
-                      </button>
-                    </div>
-                  </div>
+              <div v-if="gateState === 'NO_TARGET'" class="mt-4 grid gap-3 md:grid-cols-2">
+                <button
+                  type="button"
+                  class="rounded-[12px] border p-4 text-left transition-colors"
+                  :style="{
+                    borderColor: targetMode === 'local' ? 'var(--oc-card-border-strong)' : 'var(--oc-card-border)',
+                    background: targetMode === 'local' ? 'var(--oc-item-active)' : 'var(--oc-card-elevated)'
+                  }"
+                  @click="chooseLocalTarget"
+                >
+                  <p class="text-base font-semibold" style="color: var(--oc-text-primary);">安装在本地</p>
+                  <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">使用本机环境安装并运行 OpenClaw。</p>
+                </button>
 
-                  <div class="flex flex-wrap gap-2">
-                    <button class="oc-toolbar-btn h-9 px-3" type="button" @click="chooseLocalTarget">改用本地</button>
-                    <button class="oc-toolbar-btn h-9 px-3" type="button" @click="chooseSshTarget">改用 SSH</button>
-                  </div>
+                <button
+                  type="button"
+                  class="rounded-[12px] border p-4 text-left transition-colors"
+                  :style="{
+                    borderColor: targetMode === 'ssh' ? 'var(--oc-card-border-strong)' : 'var(--oc-card-border)',
+                    background: targetMode === 'ssh' ? 'var(--oc-item-active)' : 'var(--oc-card-elevated)'
+                  }"
+                  @click="chooseSshTarget"
+                >
+                  <p class="text-base font-semibold" style="color: var(--oc-text-primary);">连接 SSH 环境</p>
+                  <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">后续所有操作基于该 SSH 环境执行。</p>
+                </button>
+              </div>
+
+              <div v-else-if="gateState === 'NEED_INSTALL' && targetMode === 'ssh'" class="mt-4 space-y-3">
+                <div class="rounded-[12px] border px-3 py-2 text-sm" style="border-color: var(--oc-card-border); background: var(--oc-card-elevated); color: var(--oc-text-secondary);">
+                  当前环境：<strong style="color: var(--oc-text-primary);">{{ targetMode === 'ssh' ? 'SSH' : '本地' }}</strong>
                 </div>
 
-                <div v-else class="mt-4 space-y-2">
-                  <div class="rounded-[12px] border px-3 py-3 text-sm" style="border-color: var(--oc-card-border); background: var(--oc-card-elevated); color: var(--oc-text-secondary);">
-                    检测结果为“待配置”，请先完成以下任一操作：
-                  </div>
-                  <div class="flex flex-wrap gap-2">
-                    <button class="oc-toolbar-btn h-10 px-4" type="button" @click="runManualConfig">
-                      手动配置
+                <div v-if="targetMode === 'ssh'" class="rounded-[12px] border px-3 py-3 text-sm" style="border-color: var(--oc-card-border); background: var(--oc-card-elevated); color: var(--oc-text-secondary);">
+                  <p>1. 先通过右上角环境入口建立 SSH 连接</p>
+                  <p class="mt-1">2. 在远程执行安装后，点击"重新检测环境"</p>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <button class="oc-toolbar-btn h-9 px-3" type="button" @click="showSshModal = true">
+                      连接 SSH
                     </button>
-                    <button class="oc-toolbar-btn h-10 px-4" type="button" @click="applyDefaultConfig">
-                      使用默认配置
-                    </button>
-                    <button class="oc-toolbar-btn h-10 px-4" type="button" @click="checkEnvironment">
+                    <button class="oc-toolbar-btn h-9 px-3" type="button" @click="checkEnvironment">
                       重新检测环境
                     </button>
                   </div>
                 </div>
-                </div>
 
-                <QuickSetupGuide
-                  v-else-if="shouldShowQuickSetupGuide && envStatus"
-                  class="h-full"
-                  :show-toast="showToast"
-                  :show-close-action="shouldShowQuickSetupCloseAction"
-                  :system-os="envStatus.system.os"
-                  @close="handleQuickSetupClose"
-                  @complete="handleQuickSetupComplete"
-                />
-
-                <InstallPage
-                  v-else-if="gateState === 'NEED_INSTALL' && targetMode === 'local'"
-                  class="h-full"
-                  :mode="'local'"
-                  :env-connected="true"
-                  :openclaw-installed="openclawInstalled"
-                  @install-complete="handleInstallComplete"
-                />
-              </template>
-
-              <StatusDashboard
-                v-else-if="activeNav === 'overview' && envStatus"
-                class="oc-page-root"
-                :env-status="envStatus"
-                :gateway-reachable="gatewayReachable"
-                :env-mode="currentEnv.mode"
-                :is-windows="isWindows"
-                :gateway-service-installed="gatewayServiceInstalled"
-                :pending-tool-id="pendingToolId"
-                @open-tool="openToolPanel"
-              />
-
-              <div v-else-if="activeNav === 'ai-config'" class="oc-page-root">
-                <ConfigPage
-                  v-if="envStatus && openclawInstalled"
-                  class="oc-page-root"
-                  :show-toast="showToast"
-                  :env-mode="currentEnv.mode"
-                  :env-ssh-connected="sshConnected"
-                />
-                <div v-else class="oc-panel p-6">
-                  <h3 class="text-lg font-semibold" style="color: var(--oc-text-primary);">模型配置不可用</h3>
-                  <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">请先在"安装与接入"中完成安装。</p>
+                <div class="flex flex-wrap gap-2">
+                  <button class="oc-toolbar-btn h-9 px-3" type="button" @click="chooseLocalTarget">改用本地</button>
+                  <button class="oc-toolbar-btn h-9 px-3" type="button" @click="chooseSshTarget">改用 SSH</button>
                 </div>
               </div>
 
-              <div v-else-if="activeNav === 'bindings'" class="oc-page-root">
-                <BindingsPage
-                  v-if="envStatus && openclawInstalled"
-                  class="oc-page-root"
-                  :show-toast="showToast"
-                  :env-mode="currentEnv.mode"
-                  :env-ssh-connected="sshConnected"
-                />
-                <div v-else class="oc-panel p-6">
-                  <h3 class="text-lg font-semibold" style="color: var(--oc-text-primary);">绑定管理不可用</h3>
-                  <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">请先在"安装与接入"中完成安装。</p>
+              <div v-else class="mt-4 space-y-2">
+                <div class="rounded-[12px] border px-3 py-3 text-sm" style="border-color: var(--oc-card-border); background: var(--oc-card-elevated); color: var(--oc-text-secondary);">
+                  检测结果为"待配置"，请先完成以下任一操作：
                 </div>
-              </div>
-
-              <DiagnosticsPage
-                v-else-if="activeNav === 'diagnostics'"
-                class="oc-page-root"
-                :app-state="appState === 'ERROR' || appState === 'DEGRADED' ? appState : 'READY'"
-                :env-mode="currentEnv.mode"
-                :openclaw-installed="openclawInstalled"
-                @refresh="checkEnvironment"
-              />
-
-              <div v-else-if="activeNav === 'channels'" class="oc-page-root">
-                <MessageChannelsPage class="h-full min-h-0" :show-toast="showToast" :system-os="currentSystemOs" />
-              </div>
-
-              <div v-else class="space-y-3">
-                <section class="oc-panel p-6">
-                  <h3 class="text-xl font-semibold" style="color: var(--oc-text-primary);">系统设置</h3>
-                  <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">连接相关操作统一从顶部环境入口管理，设置页仅保留偏好项。</p>
-                </section>
-
-                <section class="oc-panel p-6">
-                  <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h4 class="text-lg font-semibold" style="color: var(--oc-text-primary);">工具设置</h4>
-                      <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">
-                        按当前环境修改配置文件，不覆盖你已有的其它字段。
-                      </p>
-                    </div>
-                    <span class="rounded-[10px] border px-2.5 py-1 text-xs" style="border-color: var(--oc-card-border); color: var(--oc-text-secondary);">
-                      {{ currentEnv.mode === 'ssh' ? 'SSH 环境' : '本地环境' }}
-                    </span>
-                  </div>
-
-                  <div class="mt-4 rounded-[12px] border p-4" style="border-color: var(--oc-card-border); background: var(--oc-card-elevated);">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p class="text-sm font-medium" style="color: var(--oc-text-primary);">浏览器默认 Profile</p>
-                        <p class="mt-1 text-xs" style="color: var(--oc-text-muted);">
-                          开启时写入 <code>browser.defaultProfile</code> = <code>"openclaw"</code>；关闭时仅删除 <code>defaultProfile</code>，保留 <code>browser</code> 及其它设置。
-                        </p>
-                      </div>
-                      <div class="inline-flex items-center gap-3">
-                        <button
-                          type="button"
-                          aria-label="toggle-browser-default-profile"
-                          class="relative inline-flex h-6 w-11 items-center rounded-full border transition-colors"
-                          :style="{
-                            borderColor: browserDefaultProfileEnabled ? 'color-mix(in srgb, var(--oc-success) 55%, transparent)' : 'var(--oc-card-border)',
-                            background: browserDefaultProfileEnabled
-                              ? 'color-mix(in srgb, var(--oc-success) 28%, transparent)'
-                              : 'color-mix(in srgb, var(--oc-card-elevated) 92%, transparent)'
-                          }"
-                          :disabled="browserSettingSwitchDisabled"
-                          @click="toggleBrowserDefaultProfile"
-                        >
-                          <span
-                            class="h-4 w-4 rounded-full border transition-transform"
-                            :style="{
-                              borderColor: 'var(--oc-card-border)',
-                              background: 'var(--oc-card)',
-                              transform: browserDefaultProfileEnabled ? 'translateX(22px)' : 'translateX(2px)'
-                            }"
-                          />
-                        </button>
-                        <span class="text-xs" :style="{ color: browserDefaultProfileEnabled ? 'var(--oc-success)' : 'var(--oc-text-muted)' }">
-                          {{ browserSettingStatusText }}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p v-if="browserSettingPath" class="mt-3 text-xs" style="color: var(--oc-text-muted);">
-                    配置文件：{{ browserSettingPath }}
-                  </p>
-                  <p v-if="browserSettingError" class="mt-2 text-xs" style="color: var(--oc-danger);">
-                    {{ browserSettingError }}
-                  </p>
-                </section>
-
-                <section class="oc-panel p-6">
-                  <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h4 class="text-lg font-semibold" style="color: var(--oc-text-primary);">页面调试</h4>
-                      <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">
-                        从设置页直接打开快速引导，便于调试布局、主题色和页面内容。
-                      </p>
-                    </div>
-                    <span
-                      class="rounded-[10px] border px-2.5 py-1 text-xs"
-                      style="border-color: color-mix(in srgb, var(--oc-accent) 12%, var(--oc-card-border)); color: var(--oc-accent);"
-                    >
-                      调试入口
-                    </span>
-                  </div>
-
-                  <div
-                    class="mt-4 rounded-[12px] border p-4"
-                    style="border-color: color-mix(in srgb, var(--oc-accent) 10%, var(--oc-card-border)); background: color-mix(in srgb, var(--oc-accent-soft) 18%, var(--oc-card) 82%);"
-                  >
-                    <div class="flex flex-wrap items-center justify-between gap-4">
-                      <div>
-                        <p class="text-sm font-medium" style="color: var(--oc-text-primary);">打开快速引导页面</p>
-                        <p class="mt-1 text-xs leading-6" style="color: var(--oc-text-secondary);">
-                          使用当前本地环境数据渲染快速引导，用于检查满高布局与细节视觉效果。
-                        </p>
-                      </div>
-
-                      <Button variant="default" @click="openQuickSetupDebug">
-                        打开快速引导
-                      </Button>
-                    </div>
-                  </div>
-                </section>
-
-                <section v-if="showOpenClawUninstallAction" class="oc-panel p-6">
-                  <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h4 class="text-lg font-semibold" style="color: var(--oc-text-primary);">危险操作</h4>
-                      <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">
-                        卸载本机 OpenClaw 全局 npm 包，并移除后台网关服务。
-                      </p>
-                    </div>
-                    <span
-                      class="rounded-[10px] border px-2.5 py-1 text-xs"
-                      style="border-color: color-mix(in srgb, var(--oc-danger) 24%, var(--oc-card-border)); color: var(--oc-danger);"
-                    >
-                      仅本地环境
-                    </span>
-                  </div>
-
-                  <div
-                    class="mt-4 rounded-[12px] border p-4"
-                    style="border-color: color-mix(in srgb, var(--oc-danger) 24%, var(--oc-card-border)); background: color-mix(in srgb, var(--oc-danger) 6%, var(--oc-card));"
-                  >
-                    <div class="flex flex-wrap items-start justify-between gap-4">
-                      <div class="max-w-2xl">
-                        <p class="text-sm font-medium" style="color: var(--oc-text-primary);">卸载 OpenClaw</p>
-                        <p class="mt-1 text-xs leading-6" style="color: var(--oc-text-muted);">
-                          会删除全局 <code>openclaw</code> npm 包并卸载网关后台服务。Windows 下也会尝试卸载通过
-                          <code>nssm</code> 安装的 <code>openclaw-gateway</code> 服务；最后一步可选择是否删除
-                          <code>~/.openclaw</code>。
-                        </p>
-                      </div>
-
-                      <Button
-                        variant="destructive"
-                        :disabled="openClawUninstallActionState.disabled"
-                        :title="openClawUninstallActionState.reason || '卸载 OpenClaw'"
-                        @click="openOpenClawUninstallFlow"
-                      >
-                        卸载 OpenClaw
-                      </Button>
-                    </div>
-                  </div>
-
-                  <p
-                    v-if="openClawUninstallActionState.reason"
-                    class="mt-3 text-xs"
-                    style="color: var(--oc-text-muted);"
-                  >
-                    {{ openClawUninstallActionState.reason }}
-                  </p>
-                </section>
+                <div class="flex flex-wrap gap-2">
+                  <button class="oc-toolbar-btn h-10 px-4" type="button" @click="runManualConfig">
+                    手动配置
+                  </button>
+                  <button class="oc-toolbar-btn h-10 px-4" type="button" @click="applyDefaultConfig">
+                    使用默认配置
+                  </button>
+                  <button class="oc-toolbar-btn h-10 px-4" type="button" @click="checkEnvironment">
+                    重新检测环境
+                  </button>
+                </div>
               </div>
             </div>
+
+            <QuickSetupGuide
+              v-else-if="shouldShowQuickSetupGuide && envStatus"
+              class="h-full"
+              :show-toast="showToast"
+              :show-close-action="shouldShowQuickSetupCloseAction"
+              :system-os="envStatus.system.os"
+              @close="handleQuickSetupClose"
+              @complete="handleQuickSetupComplete"
+            />
+
+            <InstallPage
+              v-else-if="gateState === 'NEED_INSTALL' && targetMode === 'local'"
+              class="h-full"
+              :mode="'local'"
+              :env-connected="true"
+              :openclaw-installed="openclawInstalled"
+              @install-complete="handleInstallComplete"
+            />
           </div>
-        </main>
-      </section>
+        </div>
+
+        <!-- 正常页面导航内容 -->
+        <div v-else class="dashboard-content">
+          <div class="oc-main-scroll-page">
+            <StatusDashboard
+              v-if="activeNav === 'overview' && envStatus"
+              class="oc-page-root"
+              :env-status="envStatus"
+              :gateway-reachable="gatewayReachable"
+              :env-mode="currentEnv.mode"
+              :is-windows="isWindows"
+              :gateway-service-installed="gatewayServiceInstalled"
+              :pending-tool-id="pendingToolId"
+              @open-tool="openToolPanel"
+            />
+
+            <div v-else-if="activeNav === 'ai-config'" class="oc-page-root">
+              <ConfigPage
+                v-if="envStatus && openclawInstalled"
+                class="oc-page-root"
+                :show-toast="showToast"
+                :env-mode="currentEnv.mode"
+                :env-ssh-connected="sshConnected"
+              />
+              <div v-else class="oc-panel p-6">
+                <h3 class="text-lg font-semibold" style="color: var(--oc-text-primary);">模型配置不可用</h3>
+                <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">请先在"安装与接入"中完成安装。</p>
+              </div>
+            </div>
+
+            <div v-else-if="activeNav === 'bindings'" class="oc-page-root">
+              <BindingsPage
+                v-if="envStatus && openclawInstalled"
+                class="oc-page-root"
+                :show-toast="showToast"
+                :env-mode="currentEnv.mode"
+                :env-ssh-connected="sshConnected"
+              />
+              <div v-else class="oc-panel p-6">
+                <h3 class="text-lg font-semibold" style="color: var(--oc-text-primary);">绑定管理不可用</h3>
+                <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">请先在"安装与接入"中完成安装。</p>
+              </div>
+            </div>
+
+            <DiagnosticsPage
+              v-else-if="activeNav === 'diagnostics'"
+              class="oc-page-root"
+              :app-state="appState === 'ERROR' || appState === 'DEGRADED' ? appState : 'READY'"
+              :env-mode="currentEnv.mode"
+              :openclaw-installed="openclawInstalled"
+              @refresh="checkEnvironment"
+            />
+
+            <div v-else-if="activeNav === 'channels'" class="oc-page-root">
+              <MessageChannelsPage class="h-full min-h-0" :show-toast="showToast" :system-os="currentSystemOs" />
+            </div>
+
+            <div v-else class="space-y-3">
+              <section class="oc-panel p-6">
+                <h3 class="text-xl font-semibold" style="color: var(--oc-text-primary);">系统设置</h3>
+                <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">连接相关操作统一从顶部环境入口管理，设置页仅保留偏好项。</p>
+              </section>
+
+              <section class="oc-panel p-6">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h4 class="text-lg font-semibold" style="color: var(--oc-text-primary);">工具设置</h4>
+                    <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">
+                      按当前环境修改配置文件，不覆盖你已有的其它字段。
+                    </p>
+                  </div>
+                  <span class="rounded-[10px] border px-2.5 py-1 text-xs" style="border-color: var(--oc-card-border); color: var(--oc-text-secondary);">
+                    {{ currentEnv.mode === 'ssh' ? 'SSH 环境' : '本地环境' }}
+                  </span>
+                </div>
+
+                <div class="mt-4 rounded-[12px] border p-4" style="border-color: var(--oc-card-border); background: var(--oc-card-elevated);">
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p class="text-sm font-medium" style="color: var(--oc-text-primary);">浏览器默认 Profile</p>
+                      <p class="mt-1 text-xs" style="color: var(--oc-text-muted);">
+                        开启时写入 <code>browser.defaultProfile</code> = <code>"openclaw"</code>；关闭时仅删除 <code>defaultProfile</code>，保留 <code>browser</code> 及其它设置。
+                      </p>
+                    </div>
+                    <div class="inline-flex items-center gap-3">
+                      <button
+                        type="button"
+                        aria-label="toggle-browser-default-profile"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full border transition-colors"
+                        :style="{
+                          borderColor: browserDefaultProfileEnabled ? 'color-mix(in srgb, var(--oc-success) 55%, transparent)' : 'var(--oc-card-border)',
+                          background: browserDefaultProfileEnabled
+                            ? 'color-mix(in srgb, var(--oc-success) 28%, transparent)'
+                            : 'color-mix(in srgb, var(--oc-card-elevated) 92%, transparent)'
+                        }"
+                        :disabled="browserSettingSwitchDisabled"
+                        @click="toggleBrowserDefaultProfile"
+                      >
+                        <span
+                          class="h-4 w-4 rounded-full border transition-transform"
+                          :style="{
+                            borderColor: 'var(--oc-card-border)',
+                            background: 'var(--oc-card)',
+                            transform: browserDefaultProfileEnabled ? 'translateX(22px)' : 'translateX(2px)'
+                          }"
+                        />
+                      </button>
+                      <span class="text-xs" :style="{ color: browserDefaultProfileEnabled ? 'var(--oc-success)' : 'var(--oc-text-muted)' }">
+                        {{ browserSettingStatusText }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <p v-if="browserSettingPath" class="mt-3 text-xs" style="color: var(--oc-text-muted);">
+                  配置文件：{{ browserSettingPath }}
+                </p>
+                <p v-if="browserSettingError" class="mt-2 text-xs" style="color: var(--oc-danger);">
+                  {{ browserSettingError }}
+                </p>
+              </section>
+
+              <section class="oc-panel p-6">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h4 class="text-lg font-semibold" style="color: var(--oc-text-primary);">页面调试</h4>
+                    <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">
+                      从设置页直接打开快速引导，便于调试布局、主题色和页面内容。
+                    </p>
+                  </div>
+                  <span
+                    class="rounded-[10px] border px-2.5 py-1 text-xs"
+                    style="border-color: color-mix(in srgb, var(--oc-accent) 12%, var(--oc-card-border)); color: var(--oc-accent);"
+                  >
+                    调试入口
+                  </span>
+                </div>
+
+                <div
+                  class="mt-4 rounded-[12px] border p-4"
+                  style="border-color: color-mix(in srgb, var(--oc-accent) 10%, var(--oc-card-border)); background: color-mix(in srgb, var(--oc-accent-soft) 18%, var(--oc-card) 82%);"
+                >
+                  <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <p class="text-sm font-medium" style="color: var(--oc-text-primary);">打开快速引导页面</p>
+                      <p class="mt-1 text-xs leading-6" style="color: var(--oc-text-secondary);">
+                        使用当前本地环境数据渲染快速引导，用于检查满高布局与细节视觉效果。
+                      </p>
+                    </div>
+
+                    <Button variant="default" @click="openQuickSetupDebug">
+                      打开快速引导
+                    </Button>
+                  </div>
+                </div>
+              </section>
+
+              <section v-if="showOpenClawUninstallAction" class="oc-panel p-6">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h4 class="text-lg font-semibold" style="color: var(--oc-text-primary);">危险操作</h4>
+                    <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">
+                      卸载本机 OpenClaw 全局 npm 包，并移除后台网关服务。
+                    </p>
+                  </div>
+                  <span
+                    class="rounded-[10px] border px-2.5 py-1 text-xs"
+                    style="border-color: color-mix(in srgb, var(--oc-danger) 24%, var(--oc-card-border)); color: var(--oc-danger);"
+                  >
+                    仅本地环境
+                  </span>
+                </div>
+
+                <div
+                  class="mt-4 rounded-[12px] border p-4"
+                  style="border-color: color-mix(in srgb, var(--oc-danger) 24%, var(--oc-card-border)); background: color-mix(in srgb, var(--oc-danger) 6%, var(--oc-card));"
+                >
+                  <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div class="max-w-2xl">
+                      <p class="text-sm font-medium" style="color: var(--oc-text-primary);">卸载 OpenClaw</p>
+                      <p class="mt-1 text-xs leading-6" style="color: var(--oc-text-muted);">
+                        会删除全局 <code>openclaw</code> npm 包并卸载网关后台服务。Windows 下也会尝试卸载通过
+                        <code>nssm</code> 安装的 <code>openclaw-gateway</code> 服务；最后一步可选择是否删除
+                        <code>~/.openclaw</code>。
+                      </p>
+                    </div>
+
+                    <Button
+                      variant="destructive"
+                      :disabled="openClawUninstallActionState.disabled"
+                      :title="openClawUninstallActionState.reason || '卸载 OpenClaw'"
+                      @click="openOpenClawUninstallFlow"
+                    >
+                      卸载 OpenClaw
+                    </Button>
+                  </div>
+                </div>
+
+                <p
+                  v-if="openClawUninstallActionState.reason"
+                  class="mt-3 text-xs"
+                  style="color: var(--oc-text-muted);"
+                >
+                  {{ openClawUninstallActionState.reason }}
+                </p>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部 Dock 栏 -->
+      <DockBar
+        :active-nav="activeNav"
+        @navigate="navigateTo"
+      />
     </div>
 
+    <!-- SSH 连接模态框 -->
     <SshConnectModal
       v-if="showSshModal"
       @close="showSshModal = false"

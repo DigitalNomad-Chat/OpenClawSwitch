@@ -50,3 +50,6 @@ docs/plans/
 tests/
 src-tauri/resources/vendor/
 src-tauri/resources/windows/
+
+# YoYo AI version control directory
+.yoyo/
