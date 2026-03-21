@@ -743,13 +743,24 @@ fn detect_openclaw_package_root() -> Result<PathBuf, String> {
 }
 
 fn get_extensions_root() -> Result<PathBuf, String> {
+    // 优先检查本地 .openclaw/extensions 目录（用户安装的插件）
+    let local_extensions = dirs::home_dir()
+        .ok_or_else(|| "无法获取用户主目录".to_string())?
+        .join(".openclaw")
+        .join("extensions");
+
+    if local_extensions.exists() {
+        return Ok(local_extensions);
+    }
+
+    // 回退到原来的逻辑（npm-global 目录）
     let openclaw_root = detect_openclaw_package_root()?;
     Ok(openclaw_root.join("extensions"))
 }
 
 fn get_extension_meta(channel_id: &str) -> Result<(&'static str, &'static str, &'static str), String> {
     match channel_id {
-        "feishu" => Ok(("@larksuiteoapi/feishu-openclaw-plugin", "feishu", "@larksuiteoapi/feishu-openclaw-plugin")),
+        "feishu" => Ok(("@larksuite/openclaw-lark", "openclaw-lark", "@larksuite/openclaw-lark")),
         "wecom" => Ok(("@wecom/wecom-openclaw-plugin", "wecom-openclaw-plugin", "@wecom/wecom-openclaw-plugin")),
         "qq" => Ok(("@sliverp/qqbot", "qqbot", "@sliverp/qqbot")),
         "dingtalk" => Ok(("@dingtalk-real-ai/dingtalk-connector", "dingtalk", "@dingtalk-real-ai/dingtalk-connector")),
@@ -3292,6 +3303,18 @@ pub async fn start_gateway(_app: AppHandle) -> Result<String, String> {
     {
         if is_windows_gateway_service_installed(&_app) {
             return control_gateway_service_via_nssm(&_app, "start");
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // 在 Unix/macOS 系统上，检查服务是否已加载
+        // 如果未加载，先安装服务
+        let check_cmd = "launchctl list | grep ai.openclaw.gateway";
+        if run_shell(check_cmd).is_err() {
+            // 服务未加载，先安装
+            let install_cmd = with_fnm_env("openclaw gateway install");
+            run_shell(&install_cmd)?;
         }
     }
 

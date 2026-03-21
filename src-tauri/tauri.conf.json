@@ -50,6 +50,9 @@
         "icons/icon.ico",
         "icons/icon.png"
       ],
+      "resources": [
+        "resources/presets"
+      ],
       "macOS": {
         "entitlements": null,
         "exceptionDomain": "",

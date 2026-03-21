@@ -13,6 +13,10 @@ mod ssh;
 mod ssh_profiles;
 mod installer;
 mod bindings;
+mod skill_presets;
+mod agent_workspaces;
+mod cron_jobs;
+mod agents;
 
 // ============================================================================
 // 类型定义说明
@@ -941,6 +945,49 @@ fn main() {
             installer::approve_feishu_pairing,
             installer::open_web_ui,
             installer::run_doctor_fix,
+            // Skill Presets
+            skill_presets::get_all_presets,
+            skill_presets::get_installed_status,
+            skill_presets::get_skills_with_status,
+            skill_presets::install_skill,
+            skill_presets::uninstall_skill,
+            skill_presets::enable_skill,
+            skill_presets::disable_skill,
+            skill_presets::check_skill_dependencies,
+            skill_presets::get_skills_by_source_grouped,
+            skill_presets::get_skill_document,
+            skill_presets::delete_installed_skill,
+            skill_presets::open_skill_folder,
+            skill_presets::get_api_key_requirements,
+            skill_presets::get_skills_by_category,
+            skill_presets::get_skills_by_source,
+            skill_presets::get_recommended_skills,
+            skill_presets::get_all_categories,
+            skill_presets::get_dependency_install_guide,
+            // Agent Workspaces
+            agent_workspaces::get_all_agent_workspaces,
+            agent_workspaces::get_agent_workspaces_with_status,
+            agent_workspaces::activate_agent_workspace,
+            agent_workspaces::deactivate_agent_workspace,
+            agent_workspaces::record_agent_workspace_usage,
+            agent_workspaces::get_agent_workspace_categories,
+            agent_workspaces::get_recommended_agent_workspaces,
+            agent_workspaces::get_agent_workspace_by_id,
+            agent_workspaces::get_agent_workspaces_by_category,
+            agent_workspaces::check_agent_deployed,
+            agent_workspaces::deploy_agent_workspace,
+            agent_workspaces::undeploy_agent_workspace,
+            // Cron Jobs
+            cron_jobs::get_cron_jobs,
+            cron_jobs::get_cron_job,
+            cron_jobs::create_cron_job,
+            cron_jobs::update_cron_job,
+            cron_jobs::delete_cron_job,
+            cron_jobs::enable_cron_job,
+            cron_jobs::disable_cron_job,
+            // Agents
+            agents::get_available_agents,
+            agents::get_available_agents_with_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

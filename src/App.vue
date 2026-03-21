@@ -19,6 +19,9 @@ import QuickSetupGuide from './components/pages/QuickSetupGuide.vue'
 import BindingsPage from './components/pages/BindingsPage.vue'
 import MessageChannelsPage from './components/pages/MessageChannelsPage.vue'
 import DiagnosticsPage from './components/pages/DiagnosticsPage.vue'
+import SkillPresetsPage from './components/pages/SkillPresetsPage.vue'
+import AgentWorkspacesPage from './components/pages/AgentWorkspacesPage.vue'
+import CronJobsPage from './components/pages/CronJobsPage.vue'
 import SshConnectModal from './components/SshConnectModal.vue'
 import SshFingerprintDialog from './components/SshFingerprintDialog.vue'
 import Button from './components/ui/Button.vue'
@@ -108,6 +111,7 @@ const envStatus = ref<EnvironmentStatus | null>(null)
 const configLoaded = ref(false)
 const primaryModelValid = ref(false)
 const gatewayReachable = ref(false)
+const gatewayChecking = ref(false)
 const gatewayServiceInstalled = ref(true)
 const lastActionFailed = ref(false)
 const pendingToolId = ref<string | null>(null)
@@ -119,6 +123,15 @@ const bindingsCount = ref(0)
 const activeBindingsCount = ref(0)
 const channelsEnabled = ref(0)
 const totalChannels = ref(0)
+
+// Skill 预设、Agent 工作空间、Cron 定时任务统计
+const presetsCount = ref(0)
+const activePresetsCount = ref(0)
+const workspacesCount = ref(0)
+const activeWorkspacesCount = ref(0)
+const totalJobs = ref(0)
+const enabledJobs = ref(0)
+const jobsWithErrors = ref(0)
 
 const loading = ref(false)
 const loadingMessage = ref('加载中...')
@@ -202,6 +215,18 @@ const navMeta: Record<NavPage, { title: string; subtitle: string }> = {
   channels: {
     title: '消息渠道',
     subtitle: '通知增强能力，不阻塞 OpenClaw 主流程。',
+  },
+  'skill-presets': {
+    title: '技能预设',
+    subtitle: '发现和安装 AI Agent 技能扩展。',
+  },
+  'agent-workspaces': {
+    title: 'Agent Workspaces',
+    subtitle: '管理和使用职场Agent岗位预设。',
+  },
+  'cron-jobs': {
+    title: 'Cron 定时任务',
+    subtitle: '管理 OpenClaw 的 Cron 定时任务配置。',
   },
   settings: {
     title: '系统设置',
@@ -494,7 +519,10 @@ const runWithPendingTool = async (toolId: string, action: () => Promise<void>) =
 }
 
 const syncConfigSignals = async () => {
+  console.log('[syncConfigSignals] 开始执行', { openclawInstalled: openclawInstalled.value, currentMode: currentEnv.value.mode })
+
   if (!openclawInstalled.value) {
+    console.log('[syncConfigSignals] OpenClaw 未安装，跳过所有检查')
     configLoaded.value = false
     primaryModelValid.value = false
     gatewayReachable.value = false
@@ -504,8 +532,17 @@ const syncConfigSignals = async () => {
     activeBindingsCount.value = 0
     channelsEnabled.value = 0
     totalChannels.value = 0
+    presetsCount.value = 0
+    activePresetsCount.value = 0
+    workspacesCount.value = 0
+    activeWorkspacesCount.value = 0
+    totalJobs.value = 0
+    enabledJobs.value = 0
+    jobsWithErrors.value = 0
     return
   }
+
+  console.log('[syncConfigSignals] OpenClaw 已安装，继续执行检查')
 
   let config: OpenClawConfig | null = null
 
@@ -532,6 +569,7 @@ const syncConfigSignals = async () => {
       configFilePath.value = info.path
     }
   } catch {
+    console.error('[syncConfigSignals] 配置加载失败')
     configLoaded.value = false
     primaryModelValid.value = false
     configFilePath.value = ''
@@ -595,15 +633,84 @@ const syncConfigSignals = async () => {
     totalChannels.value = 0
   }
 
+  // 解析 Skill 预设、Agent 工作空间、Cron 定时任务统计数据
   try {
+    // 获取 Cron 定时任务统计
     if (currentEnv.value.mode === 'ssh' && sshConnected.value) {
-      gatewayReachable.value = await invoke<boolean>('ssh_health_check')
+      const jobs = await invoke<any[]>('ssh_get_cron_jobs')
+      totalJobs.value = jobs.length
+      enabledJobs.value = jobs.filter((j: any) => j.enabled).length
+      jobsWithErrors.value = jobs.filter((j: any) =>
+        j.state?.lastRunStatus === 'error' || (j.state?.consecutiveErrors || 0) > 0
+      ).length
     } else {
-      gatewayReachable.value = await invoke<boolean>('health_check_gateway')
+      const jobs = await invoke<any[]>('get_cron_jobs')
+      totalJobs.value = jobs.length
+      enabledJobs.value = jobs.filter((j: any) => j.enabled).length
+      jobsWithErrors.value = jobs.filter((j: any) =>
+        j.state?.lastRunStatus === 'error' || (j.state?.consecutiveErrors || 0) > 0
+      ).length
     }
   } catch {
+    totalJobs.value = 0
+    enabledJobs.value = 0
+    jobsWithErrors.value = 0
+  }
+
+  try {
+    // 获取 Skill 预设统计
+    if (currentEnv.value.mode === 'ssh' && sshConnected.value) {
+      // SSH 模式暂不支持
+      presetsCount.value = 0
+      activePresetsCount.value = 0
+    } else {
+      const skills = await invoke<any[]>('get_skills_with_status')
+      presetsCount.value = skills.length
+      // 统计已安装并启用的预设
+      activePresetsCount.value = skills.filter((s: any) => s.installed && s.enabled).length
+    }
+  } catch {
+    presetsCount.value = 0
+    activePresetsCount.value = 0
+  }
+
+  try {
+    // 获取 Agent 工作空间统计
+    if (currentEnv.value.mode === 'ssh' && sshConnected.value) {
+      // SSH 模式暂不支持
+      workspacesCount.value = 0
+      activeWorkspacesCount.value = 0
+    } else {
+      const workspaces = await invoke<any[]>('get_all_agent_workspaces')
+      workspacesCount.value = workspaces.length
+      // 统计活跃的工作空间（默认都视为可用，因为没有启用/禁用状态）
+      activeWorkspacesCount.value = workspaces.length
+    }
+  } catch {
+    workspacesCount.value = 0
+    activeWorkspacesCount.value = 0
+  }
+
+  try {
+    console.log('[syncConfigSignals] 开始网关健康检查', {
+      mode: currentEnv.value.mode,
+      sshConnected: sshConnected.value,
+      before: gatewayReachable.value
+    })
+
+    if (currentEnv.value.mode === 'ssh' && sshConnected.value) {
+      gatewayReachable.value = await invoke<boolean>('ssh_health_check')
+      console.log('[syncConfigSignals] SSH 健康检查结果:', gatewayReachable.value)
+    } else {
+      gatewayReachable.value = await invoke<boolean>('health_check_gateway')
+      console.log('[syncConfigSignals] 本地健康检查结果:', gatewayReachable.value)
+    }
+  } catch (error) {
+    console.error('[syncConfigSignals] 健康检查异常:', error)
     gatewayReachable.value = false
   }
+
+  console.log('[syncConfigSignals] 执行完成', { gatewayReachable: gatewayReachable.value })
 }
 
 const openConfigFile = async () => {
@@ -630,15 +737,23 @@ const syncGatewayServiceInstallState = async () => {
 }
 
 const checkEnvironment = async () => {
+  console.log('[checkEnvironment] 开始执行', { initialCheck: envStatus.value === null, currentMode: currentEnv.value.mode })
+
   // 只在非初始加载时显示 loading
   const initialCheck = envStatus.value === null
   if (!initialCheck) {
     loading.value = true
   }
 
+  // 开始检测网关状态
+  gatewayChecking.value = true
+
   try {
+    console.log('[checkEnvironment] 调用环境检测命令', { mode: currentEnv.value.mode, sshConnected: sshConnected.value })
+
     if (currentEnv.value.mode === 'ssh') {
       if (!sshConnected.value) {
+        console.log('[checkEnvironment] SSH 未连接，跳过检测')
         envStatus.value = null
         configLoaded.value = false
         primaryModelValid.value = false
@@ -646,9 +761,17 @@ const checkEnvironment = async () => {
         gatewayServiceInstalled.value = true
       } else {
         envStatus.value = await invoke<EnvironmentStatus>('ssh_check_environment')
+        console.log('[checkEnvironment] SSH 环境检测结果:', {
+          openclawInstalled: envStatus.value?.openclaw?.installed,
+          nodeInstalled: envStatus.value?.node?.installed
+        })
       }
     } else {
       envStatus.value = await invoke<EnvironmentStatus>('check_environment')
+      console.log('[checkEnvironment] 本地环境检测结果:', {
+        openclawInstalled: envStatus.value?.openclaw?.installed,
+        nodeInstalled: envStatus.value?.node?.installed
+      })
     }
 
     if (envStatus.value && shouldClearQuickSetupSessionForEnvironment(currentEnv.value.mode, envStatus.value.openclaw.installed)) {
@@ -657,10 +780,11 @@ const checkEnvironment = async () => {
       quickSetupDebugOpen.value = false
     }
 
+    console.log('[checkEnvironment] 准备调用 syncConfigSignals')
     await syncConfigSignals()
     await syncGatewayServiceInstallState()
   } catch (error) {
-    console.error('环境检测失败:', error)
+    console.error('[checkEnvironment] 环境检测失败:', error)
     envStatus.value = null
     configLoaded.value = false
     primaryModelValid.value = false
@@ -669,6 +793,8 @@ const checkEnvironment = async () => {
     markActionResult('环境检测', false, '', '环境检测失败')
   } finally {
     loading.value = false
+    gatewayChecking.value = false
+    console.log('[checkEnvironment] 执行完成', { gatewayReachable: gatewayReachable.value })
   }
 }
 
@@ -682,14 +808,16 @@ const refreshEnvironment = async () =>
   })
 
 const pageBlockedReason = (target: NavPage) => {
+  // 这些页面不需要门禁检查
+  if (target === 'channels') return null
+  if (target === 'skill-presets') return null
+
   if (isGateActive.value) {
     if (target === 'overview') {
       return null
     }
     return '当前处于门禁状态，请先完成前置步骤'
   }
-
-  if (target === 'channels') return null
 
   if (appState.value === 'NO_TARGET' && !['settings'].includes(target)) {
     return '请先连接环境'
@@ -717,6 +845,83 @@ const navigateTo = (target: NavPage) => {
     quickSetupDebugOpen.value = false
   }
   activeNav.value = target
+}
+
+// 卡片按钮操作处理
+const handleCardAction = (cardId: NavPage, action: string) => {
+  switch (cardId) {
+    case 'overview':
+      handleStatusCardAction(action)
+      break
+    case 'ai-config':
+      handleConfigCardAction(action)
+      break
+    case 'bindings':
+      handleBindingCardAction(action)
+      break
+    case 'diagnostics':
+      handleDiagnosticsCardAction(action)
+      break
+    case 'channels':
+      handleChannelsCardAction(action)
+      break
+    case 'settings':
+      handleSettingsCardAction(action)
+      break
+  }
+}
+
+// 服务状态卡片操作处理
+const handleStatusCardAction = (action: string) => {
+  console.log('[handleStatusCardAction] 按钮点击:', { action, gatewayReachable: gatewayReachable.value })
+  switch (action) {
+    case 'details':
+      navigateTo('overview')
+      break
+    case 'restart':
+      openToolPanel('restart')
+      break
+    case 'start':
+      openToolPanel('start')
+      break
+    case 'stop':
+      openToolPanel('stop')
+      break
+  }
+}
+
+// 配置管理卡片操作处理
+const handleConfigCardAction = (action: string) => {
+  // 编辑配置和详情都跳转到 ai-config 页面
+  navigateTo('ai-config')
+}
+
+// 绑定管理卡片操作处理
+const handleBindingCardAction = (action: string) => {
+  navigateTo('bindings')
+  // TODO: 如果是 'add'，可能需要触发新建绑定的状态
+}
+
+// 诊断工具卡片操作处理
+const handleDiagnosticsCardAction = (action: string) => {
+  if (action === 'run') {
+    openTool('doctor')
+  } else {
+    navigateTo('diagnostics')
+  }
+}
+
+// 消息渠道卡片操作处理
+const handleChannelsCardAction = (action: string) => {
+  navigateTo('channels')
+  // TODO: 如果是 'add'，可能需要触发添加渠道的状态
+}
+
+// 系统设置卡片操作处理
+const handleSettingsCardAction = (action: string) => {
+  // 所有设置操作都跳转到 settings 页面
+  navigateTo('settings')
+  // TODO: 根据 action 类型可能需要滚动到特定区域
 }
 
 const openQuickSetupDebug = async () => {
@@ -1091,6 +1296,8 @@ const openToolPanel = async (toolId: string) => {
   }
 
   if (toolId === 'restart') {
+    // 立即显示提示
+    showToast('info', '正在重启网关，请等待...')
     await runWithPendingTool(toolId, async () => {
       try {
         if (currentEnv.value.mode === 'ssh') {
@@ -1122,6 +1329,8 @@ const openToolPanel = async (toolId: string) => {
   }
 
   if (toolId === 'start') {
+    // 立即显示提示
+    showToast('info', '正在启动网关，请稍候...')
     await runWithPendingTool(toolId, async () => {
       try {
         if (currentEnv.value.mode === 'ssh') {
@@ -1143,6 +1352,8 @@ const openToolPanel = async (toolId: string) => {
   }
 
   if (toolId === 'stop') {
+    // 立即显示提示
+    showToast('info', '正在停止网关，请稍候...')
     await runWithPendingTool(toolId, async () => {
       try {
         if (currentEnv.value.mode === 'ssh') {
@@ -1222,6 +1433,7 @@ onUnmounted(() => {
           :active-nav="activeNav"
           :env-status="envStatus"
           :gateway-reachable="gatewayReachable"
+          :gateway-checking="gatewayChecking"
           :config-loaded="configLoaded"
           :config-file-path="configFilePath"
           :primary-model-valid="primaryModelValid"
@@ -1234,7 +1446,15 @@ onUnmounted(() => {
           :active-bindings-count="activeBindingsCount"
           :channels-enabled="channelsEnabled"
           :total-channels="totalChannels"
+          :presets-count="presetsCount"
+          :active-presets-count="activePresetsCount"
+          :workspaces-count="workspacesCount"
+          :active-workspaces-count="activeWorkspacesCount"
+          :total-jobs="totalJobs"
+          :enabled-jobs="enabledJobs"
+          :jobs-with-errors="jobsWithErrors"
           @navigate="navigateTo"
+          @action="handleCardAction"
         />
 
         <!-- 门禁状态内容 -->
@@ -1459,6 +1679,18 @@ onUnmounted(() => {
 
             <div v-else-if="activeNav === 'channels'" class="oc-page-root">
               <MessageChannelsPage class="h-full min-h-0" :show-toast="showToast" :system-os="currentSystemOs" />
+            </div>
+
+            <div v-else-if="activeNav === 'skill-presets'" class="oc-page-root">
+              <SkillPresetsPage class="h-full min-h-0" />
+            </div>
+
+            <div v-else-if="activeNav === 'agent-workspaces'" class="oc-page-root">
+              <AgentWorkspacesPage class="h-full min-h-0" />
+            </div>
+
+            <div v-else-if="activeNav === 'cron-jobs'" class="oc-page-root">
+              <CronJobsPage class="h-full min-h-0" :show-toast="showToast" />
             </div>
 
             <div v-else class="space-y-3">

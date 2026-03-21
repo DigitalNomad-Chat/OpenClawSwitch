@@ -39,6 +39,7 @@ export interface ModelSelection {
 export interface AgentDefaults {
   model?: ModelSelection
   models?: Record<string, { alias?: string }>
+  thinkingDefault?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'adaptive'
   workspace?: string
   compaction?: { mode?: string }
   maxConcurrent?: number

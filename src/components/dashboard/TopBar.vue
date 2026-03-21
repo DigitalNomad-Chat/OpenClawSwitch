@@ -28,6 +28,7 @@ const currentPageLabel = computed(() => {
     bindings: '绑定管理',
     diagnostics: '诊断工具',
     channels: '消息渠道',
+    'skill-presets': '技能预设',
     settings: '系统设置'
   }
   return labels[props.activeNav] || '仪表盘'

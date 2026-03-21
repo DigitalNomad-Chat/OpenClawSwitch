@@ -10,6 +10,9 @@ import BindingCard from './cards/BindingCard.vue'
 import DiagnosticsCard from './cards/DiagnosticsCard.vue'
 import ChannelsCard from './cards/ChannelsCard.vue'
 import SettingsCard from './cards/SettingsCard.vue'
+import SkillPresetsCard from './cards/SkillPresetsCard.vue'
+import AgentWorkspacesCard from './cards/AgentWorkspacesCard.vue'
+import CronJobsCard from './cards/CronJobsCard.vue'
 
 interface DiagnosticResults {
   passed: number
@@ -22,6 +25,7 @@ interface Props {
   // 环境状态
   envStatus?: EnvironmentStatus | null
   gatewayReachable?: boolean
+  gatewayChecking?: boolean
   // 配置状态
   configLoaded?: boolean
   configFilePath?: string
@@ -42,11 +46,22 @@ interface Props {
   totalChannels?: number
   // 诊断数据（暂用默认值）
   diagnosticResults?: DiagnosticResults
+  // Skill 预设数据
+  presetsCount?: number
+  activePresetsCount?: number
+  // Agent 工作空间数据
+  workspacesCount?: number
+  activeWorkspacesCount?: number
+  // Cron 定时任务数据
+  totalJobs?: number
+  enabledJobs?: number
+  jobsWithErrors?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   envStatus: null,
   gatewayReachable: false,
+  gatewayChecking: false,
   configLoaded: false,
   configFilePath: '',
   primaryModelValid: false,
@@ -59,11 +74,19 @@ const props = withDefaults(defineProps<Props>(), {
   activeBindingsCount: 0,
   channelsEnabled: 0,
   totalChannels: 0,
-  diagnosticResults: () => ({ passed: 0, warnings: 0, errors: 0 })
+  diagnosticResults: () => ({ passed: 0, warnings: 0, errors: 0 }),
+  presetsCount: 0,
+  activePresetsCount: 0,
+  workspacesCount: 0,
+  activeWorkspacesCount: 0,
+  totalJobs: 0,
+  enabledJobs: 0,
+  jobsWithErrors: 0
 })
 
 const emit = defineEmits<{
   navigate: [id: NavPage]
+  action: [cardId: NavPage, action: string]
 }>()
 
 // 当前激活的卡片
@@ -90,6 +113,27 @@ const dashboardCards = ref([
     title: '绑定管理',
     icon: 'Link',
     component: BindingCard,
+    alwaysVisible: true
+  },
+  {
+    id: 'skill-presets' as NavPage,
+    title: '技能预设',
+    icon: 'Sparkles',
+    component: SkillPresetsCard,
+    alwaysVisible: true
+  },
+  {
+    id: 'agent-workspaces' as NavPage,
+    title: 'Agent工作空间',
+    icon: 'Users',
+    component: AgentWorkspacesCard,
+    alwaysVisible: true
+  },
+  {
+    id: 'cron-jobs' as NavPage,
+    title: 'Cron定时任务',
+    icon: 'Clock',
+    component: CronJobsCard,
     alwaysVisible: true
   },
   {
@@ -120,6 +164,12 @@ const handleCardClick = (cardId: NavPage) => {
   // 发射事件到父组件切换视图
   emit('navigate', cardId)
 }
+
+// 卡片按钮操作处理
+const handleCardAction = (cardId: NavPage, action: string) => {
+  // 转发卡片操作事件到父组件
+  emit('action', cardId, action)
+}
 </script>
 
 <template>
@@ -143,6 +193,7 @@ const handleCardClick = (cardId: NavPage) => {
           :active="activeCardId === card.id"
           :env-status="envStatus"
           :gateway-reachable="gatewayReachable"
+          :checking="gatewayChecking"
           :config-loaded="configLoaded"
           :config-file-path="configFilePath"
           :primary-model-valid="primaryModelValid"
@@ -156,6 +207,14 @@ const handleCardClick = (cardId: NavPage) => {
           :channels-enabled="channelsEnabled"
           :total-channels="totalChannels"
           :diagnostic-results="diagnosticResults"
+          :presets-count="presetsCount"
+          :active-presets-count="activePresetsCount"
+          :workspaces-count="workspacesCount"
+          :active-workspaces-count="activeWorkspacesCount"
+          :total-jobs="totalJobs"
+          :enabled-jobs="enabledJobs"
+          :jobs-with-errors="jobsWithErrors"
+          @action="(action) => handleCardAction(card.id, action)"
         >
           <!-- 如果组件有默认插槽内容，显示它 -->
           <template v-if="card.defaultContent">
@@ -168,7 +227,7 @@ const handleCardClick = (cardId: NavPage) => {
     <!-- 底部提示 -->
     <div class="dashboard-footer">
       <p class="dashboard-footer-text">
-        💡 提示：点击卡片展开详情，使用快捷键 ⌘1-6 快速切换
+        💡 提示：点击卡片展开详情，使用快捷键 ⌘1-9 快速切换
       </p>
     </div>
   </div>
@@ -237,24 +296,6 @@ const handleCardClick = (cardId: NavPage) => {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   底部提示 - Footer
-   ═══════════════════════════════════════════════════════════ */
-
-.dashboard-footer {
-  margin-top: var(--spacing-6);
-  padding: var(--spacing-4) var(--spacing-6);
-  text-align: center;
-  border-top: 1px solid var(--oc-divider-soft);
-}
-
-.dashboard-footer-text {
-  font-size: var(--text-sm);
-  color: var(--oc-text-muted);
-  margin: 0;
-  line-height: var(--leading-relaxed);
-}
-
-/* ═══════════════════════════════════════════════════════════
    响应式设计 - Responsive Design
    ═══════════════════════════════════════════════════════════ */
 
@@ -283,6 +324,24 @@ const handleCardClick = (cardId: NavPage) => {
   .dashboard-grid {
     grid-template-columns: repeat(4, 1fr);
   }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   底部提示 - Footer
+   ═══════════════════════════════════════════════════════════ */
+
+.dashboard-footer {
+  margin-top: var(--spacing-6);
+  padding: var(--spacing-4) var(--spacing-6);
+  text-align: center;
+  border-top: 1px solid var(--oc-divider-soft);
+}
+
+.dashboard-footer-text {
+  font-size: var(--text-sm);
+  color: var(--oc-text-muted);
+  margin: 0;
+  line-height: var(--leading-relaxed);
 }
 
 /* ═══════════════════════════════════════════════════════════

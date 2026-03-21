@@ -1,0 +1,1064 @@
+{
+  "version": "1.0.0",
+  "updatedAt": "2026-03-21",
+  "skills": [
+    {
+      "id": "frontend-design",
+      "name": "前端设计助手",
+      "description": "专业的网页组件设计和代码生成助手，遵循最佳实践",
+      "longDescription": "提供高质量的 UI/UX 设计建议，支持 React、Vue、Svelte 等主流框架，生成可复用的组件代码。包含详细的设计规范和最佳实践指导。",
+      "icon": "🎨",
+      "category": "design",
+      "source": "official",
+      "recommended": true,
+      "recommendedReason": "显著提升前端开发效率，生成专业级 UI 代码",
+      "tags": [
+        "frontend",
+        "ui",
+        "css",
+        "html",
+        "react",
+        "vue"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "homepage": "https://docs.anthropic.com",
+      "requires": {
+        "bins": [
+          "node"
+        ]
+      },
+      "path": "anthropics/frontend-design"
+    },
+    {
+      "id": "claude-api",
+      "name": "Claude API 助手",
+      "description": "Anthropic Claude API 的完整集成指南和使用示例",
+      "icon": "🤖",
+      "category": "coding",
+      "source": "official",
+      "recommended": true,
+      "recommendedReason": "掌握 Claude API 的最佳实践和高级用法",
+      "tags": [
+        "claude",
+        "api",
+        "integration",
+        "anthropic"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/claude-api"
+    },
+    {
+      "id": "mcp-builder",
+      "name": "MCP 构建器",
+      "description": "Model Context Protocol 服务器和客户端的完整开发指南",
+      "icon": "🔧",
+      "category": "coding",
+      "source": "official",
+      "recommended": true,
+      "recommendedReason": "扩展 AI 能力的核心工具",
+      "tags": [
+        "mcp",
+        "protocol",
+        "server",
+        "client",
+        "tool"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/mcp-builder"
+    },
+    {
+      "id": "skill-creator",
+      "name": "Skill 创建器",
+      "description": "从零创建高质量 AI Agent 技能的完整指南",
+      "icon": "✨",
+      "category": "coding",
+      "source": "official",
+      "recommended": true,
+      "recommendedReason": "打造个性化 AI 助手的基础工具",
+      "tags": [
+        "skill",
+        "agent",
+        "creation",
+        "template"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/skill-creator"
+    },
+    {
+      "id": "docx",
+      "name": "Word 文档处理",
+      "description": "读取、创建、编辑 Word 文档的完整工具集",
+      "icon": "📄",
+      "category": "document",
+      "source": "official",
+      "recommended": true,
+      "recommendedReason": "办公文档处理的核心工具",
+      "tags": [
+        "word",
+        "docx",
+        "document",
+        "office"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/docx"
+    },
+    {
+      "id": "xlsx",
+      "name": "Excel 处理",
+      "description": "电子表格创建、编辑、分析和可视化的完整工具",
+      "icon": "📊",
+      "category": "document",
+      "source": "official",
+      "recommended": true,
+      "recommendedReason": "数据分析和报表生成的得力助手",
+      "tags": [
+        "excel",
+        "spreadsheet",
+        "csv",
+        "data",
+        "analysis"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/xlsx"
+    },
+    {
+      "id": "pdf",
+      "name": "PDF 处理",
+      "description": "PDF 文本提取、表单填写、页面操作的综合工具",
+      "icon": "📑",
+      "category": "document",
+      "source": "official",
+      "recommended": true,
+      "recommendedReason": "PDF 文档处理的完整解决方案",
+      "tags": [
+        "pdf",
+        "form",
+        "extract",
+        "document"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/pdf"
+    },
+    {
+      "id": "pptx",
+      "name": "PPT 演示文稿",
+      "description": "PowerPoint 演示文稿的创建和编辑工具",
+      "icon": "📽️",
+      "category": "document",
+      "source": "official",
+      "recommended": false,
+      "tags": [
+        "powerpoint",
+        "pptx",
+        "presentation",
+        "slides"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/pptx"
+    },
+    {
+      "id": "canvas-design",
+      "name": "Canvas 设计",
+      "description": "HTML5 Canvas 绑图和交互式图形开发指南",
+      "icon": "🎨",
+      "category": "design",
+      "source": "official",
+      "recommended": false,
+      "tags": [
+        "canvas",
+        "html5",
+        "graphics",
+        "animation"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/canvas-design"
+    },
+    {
+      "id": "web-artifacts-builder",
+      "name": "Web 工件构建器",
+      "description": "快速构建和部署交互式 Web 应用的完整方案",
+      "icon": "🌐",
+      "category": "design",
+      "source": "official",
+      "recommended": false,
+      "tags": [
+        "web",
+        "artifact",
+        "deployment",
+        "react"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/web-artifacts-builder"
+    },
+    {
+      "id": "doc-coauthoring",
+      "name": "文档协作",
+      "description": "多人协作写作的流程和工具指南",
+      "icon": "👥",
+      "category": "writing",
+      "source": "official",
+      "recommended": false,
+      "tags": [
+        "collaboration",
+        "writing",
+        "workflow",
+        "team"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/doc-coauthoring"
+    },
+    {
+      "id": "theme-factory",
+      "name": "主题工厂",
+      "description": "应用主题和视觉风格的设计系统指南",
+      "icon": "🎭",
+      "category": "writing",
+      "source": "official",
+      "recommended": false,
+      "tags": [
+        "theme",
+        "design-system",
+        "style",
+        "color"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/theme-factory"
+    },
+    {
+      "id": "algorithmic-art",
+      "name": "算法艺术",
+      "description": "使用代码创作视觉艺术和生成设计的指南",
+      "icon": "🖼️",
+      "category": "ai",
+      "source": "official",
+      "recommended": false,
+      "tags": [
+        "art",
+        "generative",
+        "algorithm",
+        "creative"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/algorithmic-art"
+    },
+    {
+      "id": "brand-guidelines",
+      "name": "品牌指南",
+      "description": "品牌形象和品牌一致性的设计指南",
+      "icon": "🎯",
+      "category": "marketing",
+      "source": "official",
+      "recommended": false,
+      "tags": [
+        "brand",
+        "guidelines",
+        "identity",
+        "design"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/brand-guidelines"
+    },
+    {
+      "id": "internal-comms",
+      "name": "内部沟通",
+      "description": "团队内部沟通和文档流转的最佳实践",
+      "icon": "💬",
+      "category": "marketing",
+      "source": "official",
+      "recommended": false,
+      "tags": [
+        "communication",
+        "internal",
+        "team",
+        "workflow"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/internal-comms"
+    },
+    {
+      "id": "slack-gif-creator",
+      "name": "Slack GIF 创建器",
+      "description": "为 Slack 频道创建动画表情和 GIF 素材",
+      "icon": "🎬",
+      "category": "marketing",
+      "source": "official",
+      "recommended": false,
+      "tags": [
+        "slack",
+        "gif",
+        "animation",
+        "emoji"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/slack-gif-creator"
+    },
+    {
+      "id": "webapp-testing",
+      "name": "Web 应用测试",
+      "description": "Web 应用自动化测试的完整指南",
+      "icon": "🧪",
+      "category": "productivity",
+      "source": "official",
+      "recommended": false,
+      "tags": [
+        "testing",
+        "web",
+        "automation",
+        "qa"
+      ],
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "path": "anthropics/webapp-testing"
+    },
+    {
+      "id": "tavily",
+      "name": "Tavily 搜索",
+      "description": "AI 优化的网页搜索，返回简洁精准的结果",
+      "icon": "🔮",
+      "category": "search",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "search",
+        "tavily",
+        "ai",
+        "web"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "homepage": "https://tavily.com",
+      "requires": {
+        "bins": [
+          "node"
+        ]
+      },
+      "apiKey": {
+        "required": true,
+        "name": "Tavily API Key",
+        "envVar": "TAVILY_API_KEY",
+        "url": "https://tavily.com",
+        "description": "免费注册获取 API Key"
+      },
+      "path": "clawhub/tavily-search"
+    },
+    {
+      "id": "brave-search",
+      "name": "Brave 搜索",
+      "description": "使用 Brave Search API 进行网页搜索",
+      "icon": "🦁",
+      "category": "search",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "search",
+        "brave",
+        "api",
+        "web"
+      ],
+      "version": "1.0.1",
+      "author": "ClawHub",
+      "homepage": "https://brave.com/search/api",
+      "requires": {
+        "bins": [
+          "node"
+        ]
+      },
+      "install": {
+        "kind": "npm",
+        "package": "brave-search-cli"
+      },
+      "apiKey": {
+        "required": true,
+        "name": "Brave Search API Key",
+        "envVar": "BRAVE_API_KEY",
+        "url": "https://brave.com/search/api",
+        "description": "注册 Brave Developer 获取免费额度"
+      },
+      "path": "clawhub/brave-search"
+    },
+    {
+      "id": "web-search-exa",
+      "name": "Exa 神经搜索",
+      "description": "神经网络搜索引擎，支持语义理解搜索",
+      "icon": "🌐",
+      "category": "search",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "无需 API Key 即可使用，搜索质量高",
+      "tags": [
+        "search",
+        "exa",
+        "neural",
+        "semantic",
+        "research"
+      ],
+      "version": "2.0.0",
+      "author": "ClawHub",
+      "homepage": "https://exa.ai",
+      "install": {
+        "kind": "mcp",
+        "command": "MCP Server: https://mcp.exa.ai/mcp"
+      },
+      "apiKey": {
+        "required": false,
+        "name": "Exa API Key",
+        "envVar": "EXA_API_KEY",
+        "url": "https://dashboard.exa.ai/api-keys",
+        "description": "可选，免费额度充足"
+      },
+      "path": "clawhub/web-search-exa"
+    },
+    {
+      "id": "multi-search-engine",
+      "name": "多引擎搜索",
+      "description": "集成 17 种搜索引擎，支持国内/国际搜索",
+      "icon": "🔍",
+      "category": "search",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "覆盖百度、搜狗、必应等国内外搜索引擎",
+      "tags": [
+        "search",
+        "multi-engine",
+        "baidu",
+        "bing",
+        "cn"
+      ],
+      "version": "2.0.1",
+      "author": "ClawHub",
+      "requires": {},
+      "path": "clawhub/multi-search-engine"
+    },
+    {
+      "id": "notion",
+      "name": "Notion 集成",
+      "description": "连接 Notion API，创建和管理页面、数据库",
+      "icon": "📝",
+      "category": "knowledge",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "notion",
+        "notes",
+        "database",
+        "api"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "homepage": "https://developers.notion.com",
+      "apiKey": {
+        "required": true,
+        "name": "Notion API Key",
+        "envVar": "NOTION_API_KEY",
+        "url": "https://notion.so/my-integrations",
+        "description": "创建集成后获取 API Key"
+      },
+      "path": "clawhub/notion"
+    },
+    {
+      "id": "obsidian",
+      "name": "Obsidian 笔记",
+      "description": "操作 Obsidian 保险库，自动化笔记管理",
+      "icon": "💎",
+      "category": "knowledge",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "obsidian",
+        "notes",
+        "markdown",
+        "vault"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "homepage": "https://obsidian.md",
+      "requires": {
+        "bins": [
+          "obsidian-cli"
+        ],
+        "os": [
+          "darwin"
+        ]
+      },
+      "install": {
+        "kind": "brew",
+        "formula": "yakitrak/yakitrak/obsidian-cli",
+        "label": "Install obsidian-cli (brew)"
+      },
+      "path": "clawhub/obsidian"
+    },
+    {
+      "id": "apple-notes",
+      "name": "Apple Notes",
+      "description": "管理 macOS Apple Notes，创建、搜索、导出笔记",
+      "icon": "📝",
+      "category": "knowledge",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "apple",
+        "notes",
+        "macos",
+        "memo"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "homepage": "https://github.com/antoniorodr/memo",
+      "requires": {
+        "bins": [
+          "memo"
+        ],
+        "os": [
+          "darwin"
+        ]
+      },
+      "install": {
+        "kind": "brew",
+        "formula": "antoniorodr/memo/memo",
+        "label": "Install memo via Homebrew"
+      },
+      "path": "clawhub/apple-notes"
+    },
+    {
+      "id": "copywriting",
+      "name": "文案撰写",
+      "description": "专业文案撰写，适用登录页、邮件、广告、销售页",
+      "icon": "✍️",
+      "category": "writing",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "掌握 AIDA、PAS 等经典文案框架",
+      "tags": [
+        "copywriting",
+        "marketing",
+        "sales",
+        "landing-page"
+      ],
+      "version": "0.1.0",
+      "author": "ClawHub",
+      "path": "clawhub/copywriting"
+    },
+    {
+      "id": "social-content",
+      "name": "社交内容创作",
+      "description": "LinkedIn、Twitter、Instagram 等社交平台内容创作",
+      "icon": "📱",
+      "category": "marketing",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "一站式社交媒体内容解决方案",
+      "tags": [
+        "social",
+        "linkedin",
+        "twitter",
+        "content",
+        "scheduling"
+      ],
+      "version": "0.1.0",
+      "author": "ClawHub",
+      "path": "clawhub/social-content"
+    },
+    {
+      "id": "product-marketing",
+      "name": "产品营销上下文",
+      "description": "创建和维护产品营销上下文文档",
+      "icon": "📣",
+      "category": "marketing",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "marketing",
+        "product",
+        "context",
+        "positioning"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "path": "clawhub/product-marketing-context"
+    },
+    {
+      "id": "diagram-generator",
+      "name": "图表生成器",
+      "description": "支持 draw.io、Mermaid、Excalidraw 多种图表格式",
+      "icon": "📈",
+      "category": "productivity",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "快速生成流程图、架构图、ER 图等",
+      "tags": [
+        "diagram",
+        "flowchart",
+        "mermaid",
+        "drawio",
+        "excalidraw"
+      ],
+      "version": "1.1.1",
+      "author": "AlkaidY",
+      "homepage": "https://github.com",
+      "install": {
+        "kind": "mcp",
+        "command": "使用 mcp-diagram-generator MCP Server"
+      },
+      "path": "clawhub/diagram-generator"
+    },
+    {
+      "id": "ui-ux-pro-max",
+      "name": "UI/UX Pro Max",
+      "description": "全面的 UI/UX 设计和实现指导，包含大量数据资源",
+      "icon": "🎨",
+      "category": "design",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "包含 20+ 技术栈的 UI 规范和组件数据",
+      "tags": [
+        "ui",
+        "ux",
+        "design-system",
+        "components",
+        "data"
+      ],
+      "version": "0.1.0",
+      "author": "ClawHub",
+      "path": "clawhub/ui-ux-pro-max"
+    },
+    {
+      "id": "summarize",
+      "name": "内容摘要",
+      "description": "快速摘要网页、PDF、图片、YouTube 视频内容",
+      "icon": "🧾",
+      "category": "productivity",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "支持多种内容格式的快速摘要",
+      "tags": [
+        "summarize",
+        "url",
+        "pdf",
+        "youtube",
+        "transcript"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "homepage": "https://summarize.sh",
+      "install": {
+        "kind": "brew",
+        "formula": "steipete/tap/summarize",
+        "label": "Install summarize (brew)"
+      },
+      "path": "clawhub/summarize"
+    },
+    {
+      "id": "weather",
+      "name": "天气查询",
+      "description": "获取全球天气信息和预报，无需 API Key",
+      "icon": "🌤️",
+      "category": "productivity",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "weather",
+        "forecast",
+        "wttr"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "homepage": "https://wttr.in",
+      "requires": {
+        "bins": [
+          "curl"
+        ]
+      },
+      "path": "clawhub/weather"
+    },
+    {
+      "id": "gog",
+      "name": "Google 工作区",
+      "description": "Gmail、日历、Drive、Calendar、Sheets、Docs",
+      "icon": "📧",
+      "category": "productivity",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "google",
+        "gmail",
+        "calendar",
+        "drive",
+        "sheets"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "homepage": "https://gogcli.sh",
+      "requires": {
+        "bins": [
+          "gog"
+        ]
+      },
+      "install": {
+        "kind": "brew",
+        "formula": "steipete/tap/gogcli",
+        "label": "Install gog (brew)"
+      },
+      "path": "clawhub/gog"
+    },
+    {
+      "id": "podcast-generation",
+      "name": "播客生成",
+      "description": "使用 Azure OpenAI 实时 API 生成播客风格音频",
+      "icon": "🎙️",
+      "category": "media",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "podcast",
+        "audio",
+        "tts",
+        "azure",
+        "websocket"
+      ],
+      "version": "0.1.0",
+      "author": "ClawHub",
+      "requires": {
+        "env": [
+          "AZURE_OPENAI_KEY"
+        ]
+      },
+      "apiKey": {
+        "required": true,
+        "name": "Azure OpenAI API Key",
+        "envVar": "AZURE_OPENAI_KEY",
+        "description": "需要配置 Azure OpenAI 服务"
+      },
+      "path": "clawhub/podcast-generation"
+    },
+    {
+      "id": "podcast-producer",
+      "name": "播客制作助手",
+      "description": "创建播客剧集、访谈、对话风格的音频内容",
+      "icon": "🎧",
+      "category": "media",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "podcast",
+        "interview",
+        "dialogue",
+        "tts",
+        "audio"
+      ],
+      "version": "1.0.1",
+      "author": "michaelboeding",
+      "path": "clawhub/podcast-producer-agent"
+    },
+    {
+      "id": "openai-whisper",
+      "name": "Whisper 转录",
+      "description": "本地语音转文字，使用 OpenAI Whisper CLI",
+      "icon": "🎤",
+      "category": "media",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "whisper",
+        "transcription",
+        "speech-to-text",
+        "local"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "homepage": "https://openai.com/research/whisper",
+      "requires": {
+        "bins": [
+          "whisper"
+        ],
+        "os": [
+          "darwin",
+          "linux"
+        ]
+      },
+      "install": {
+        "kind": "pip",
+        "package": "openai-whisper",
+        "label": "Install OpenAI Whisper (pip)"
+      },
+      "path": "clawhub/openai-whisper"
+    },
+    {
+      "id": "youtube-watcher",
+      "name": "YouTube 观看",
+      "description": "获取 YouTube 视频字幕和转录文本",
+      "icon": "📺",
+      "category": "media",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "快速获取视频内容，无需手动观看",
+      "tags": [
+        "youtube",
+        "transcript",
+        "subtitle",
+        "video"
+      ],
+      "version": "1.0.0",
+      "author": "michael gathara",
+      "requires": {
+        "bins": [
+          "yt-dlp"
+        ]
+      },
+      "install": {
+        "kind": "brew",
+        "formula": "yt-dlp",
+        "label": "Install yt-dlp (brew)"
+      },
+      "path": "clawhub/youtube-watcher"
+    },
+    {
+      "id": "free-ride",
+      "name": "免费 AI 模型",
+      "description": "自动配置 OpenRouter 免费 AI 模型，支持自动排名和降级",
+      "icon": "🆓",
+      "category": "ai",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "零成本使用高质量 AI 模型",
+      "tags": [
+        "free",
+        "openrouter",
+        "ai",
+        "model",
+        "cost-saving"
+      ],
+      "version": "1.0.5",
+      "author": "ClawHub",
+      "homepage": "https://openrouter.ai",
+      "requires": {
+        "env": [
+          "OPENROUTER_API_KEY"
+        ]
+      },
+      "apiKey": {
+        "required": true,
+        "name": "OpenRouter API Key",
+        "envVar": "OPENROUTER_API_KEY",
+        "url": "https://openrouter.ai/keys",
+        "description": "免费注册获取 API Key"
+      },
+      "path": "clawhub/free-ride"
+    },
+    {
+      "id": "model-usage",
+      "name": "模型用量统计",
+      "description": "通过 CodexBar 统计各模型的使用量和费用",
+      "icon": "📊",
+      "category": "ai",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "usage",
+        "cost",
+        "codexbar",
+        "model",
+        "analytics"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "requires": {
+        "bins": [
+          "codexbar"
+        ],
+        "os": [
+          "darwin"
+        ]
+      },
+      "install": {
+        "kind": "brew",
+        "cask": "steipete/tap/codexbar",
+        "label": "Install CodexBar (brew cask)"
+      },
+      "path": "clawhub/model-usage"
+    },
+    {
+      "id": "nano-banana-pro",
+      "name": "Nano Banana 图像",
+      "description": "使用 Gemini 3 Pro Image 生成和编辑图像",
+      "icon": "🍌",
+      "category": "ai",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "image",
+        "generation",
+        "gemini",
+        "edit"
+      ],
+      "version": "1.0.1",
+      "author": "ClawHub",
+      "requires": {
+        "bins": [
+          "uv"
+        ]
+      },
+      "install": {
+        "kind": "uv",
+        "command": "uv run generate_image.py"
+      },
+      "apiKey": {
+        "required": true,
+        "name": "Gemini API Key",
+        "envVar": "GEMINI_API_KEY",
+        "description": "获取 Gemini API Key"
+      },
+      "path": "clawhub/nano-banana-pro"
+    },
+    {
+      "id": "find-skills",
+      "name": "查找技能",
+      "description": "在技能生态系统中发现和安装 AI Agent 技能",
+      "icon": "🔎",
+      "category": "productivity",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "发现更多有用的技能扩展 AI 能力",
+      "tags": [
+        "skill",
+        "discover",
+        "install",
+        "ecosystem"
+      ],
+      "version": "0.1.0",
+      "author": "ClawHub",
+      "path": "clawhub/find-skills"
+    },
+    {
+      "id": "skill-vetter",
+      "name": "技能安全审核",
+      "description": "安装技能前的安全检查，检测权限范围和可疑模式",
+      "icon": "🔒",
+      "category": "security",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "保护系统安全，审核第三方技能",
+      "tags": [
+        "security",
+        "vetting",
+        "audit",
+        "safety"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "path": "clawhub/skill-vetter"
+    },
+    {
+      "id": "imap-smtp-email",
+      "name": "IMAP/SMTP 邮件工具",
+      "description": "通过 IMAP/SMTP 协议读取和发送邮件，支持 Gmail、Outlook、163、126 等主流邮箱",
+      "longDescription": "支持通过 IMAP 协议读取、搜索和管理邮件，通过 SMTP 协议发送邮件。支持多账号配置，适用于 Gmail、Outlook、163.com、vip.163.com、126.com、vip.126.com、188.com、vip.188.com 及任何标准 IMAP/SMTP 服务器。",
+      "icon": "📧",
+      "category": "communication",
+      "source": "community",
+      "recommended": false,
+      "tags": [
+        "email",
+        "imap",
+        "smtp",
+        "communication",
+        "邮件"
+      ],
+      "version": "0.0.10",
+      "author": "ClawHub",
+      "homepage": "https://clawhub.openclaw.dev/imap-smtp-email",
+      "requires": {
+        "bins": [
+          "node",
+          "npm"
+        ]
+      },
+      "path": "clawhub/imap-smtp-email-0.0.10",
+      "install": {
+        "kind": "npm",
+        "command": "cd ~/.openclaw/skills/imap-smtp-email && npm install"
+      }
+    },
+    {
+      "id": "agent-browser",
+      "name": "Agent Browser",
+      "description": "基于 Rust 的快速无头浏览器自动化 CLI，支持 AI Agent 通过结构化命令导航、点击、输入和截取页面",
+      "icon": "🌐",
+      "category": "automation",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "强大的浏览器自动化工具，支持交互式元素定位和操作",
+      "tags": [
+        "browser",
+        "automation",
+        "headless",
+        "scraping",
+        "testing"
+      ],
+      "version": "0.2.0",
+      "author": "ClawHub",
+      "homepage": "https://github.com/vercel-labs/agent-browser",
+      "requires": {
+        "bins": [
+          "node",
+          "npm"
+        ]
+      },
+      "install": {
+        "kind": "npm",
+        "package": "agent-browser"
+      },
+      "path": "clawhub/agent-browser"
+    },
+    {
+      "id": "playwright-mcp",
+      "name": "Playwright MCP",
+      "description": "通过 Playwright MCP Server 实现浏览器自动化，支持导航网站、点击元素、填写表单、提取数据和截屏",
+      "icon": "🎭",
+      "category": "automation",
+      "source": "community",
+      "recommended": true,
+      "recommendedReason": "标准的 MCP 协议浏览器自动化工具，支持 Chrome、Firefox、WebKit",
+      "tags": [
+        "browser",
+        "automation",
+        "playwright",
+        "mcp",
+        "scraping"
+      ],
+      "version": "1.0.0",
+      "author": "ClawHub",
+      "homepage": "https://github.com/TheSethRose/playwright-mcp",
+      "requires": {
+        "bins": [
+          "npx"
+        ],
+        "os": [
+          "linux",
+          "darwin",
+          "win32"
+        ]
+      },
+      "install": {
+        "kind": "npm",
+        "package": "@playwright/mcp"
+      },
+      "path": "clawhub/playwright-mcp"
+    }
+  ]
+}

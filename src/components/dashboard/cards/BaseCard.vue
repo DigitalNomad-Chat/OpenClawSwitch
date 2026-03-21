@@ -22,7 +22,10 @@ import {
   Link as LinkIcon,
   Stethoscope,
   MessageSquare,
-  Settings2
+  Settings2,
+  Sparkles,
+  Users,
+  Clock
 } from 'lucide-vue-next'
 
 const iconMap: Record<string, Component> = {
@@ -31,7 +34,10 @@ const iconMap: Record<string, Component> = {
   Link: LinkIcon,
   Stethoscope,
   MessageSquare,
-  Settings2
+  Settings2,
+  Sparkles,
+  Users,
+  Clock
 }
 
 const iconComponent = computed(() => {

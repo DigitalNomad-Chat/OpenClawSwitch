@@ -9,14 +9,21 @@ interface Props {
   active?: boolean
   envStatus?: any
   gatewayReachable?: boolean
+  checking?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  active: false
+  active: false,
+  checking: false
 })
 
 // 计算服务状态
 const serviceStatus = computed(() => {
+  // 检测中状态优先显示
+  if (props.checking) {
+    return { label: '检测中...', status: 'loading' as const, color: 'neutral' }
+  }
+
   if (!props.envStatus?.openclaw.installed) {
     return { label: '未安装', status: 'inactive' as const, color: 'neutral' }
   }
@@ -35,8 +42,8 @@ const versionInfo = computed(() => {
   return { version, nodeVersion }
 })
 
-// 快捷操作
-const quickActions = [
+// 快捷操作 - 使用计算属性以确保响应式更新
+const quickActions = computed(() => [
   {
     label: '详情',
     icon: ChevronRight,
@@ -60,7 +67,7 @@ const quickActions = [
     action: 'stop',
     show: props.gatewayReachable
   }
-].filter(action => action.show !== false)
+].filter(action => action.show !== false))
 
 const emit = defineEmits<{
   action: [action: string]

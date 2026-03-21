@@ -167,12 +167,15 @@ interface ChannelForm {
   feishuAllowFrom: string
   feishuGroupPolicy: 'allowlist' | 'open' | 'disabled'
   feishuGroupAllowFrom: string
+  feishuRequireMention: boolean
   feishuGroupCommandMentionBypass: 'single_bot' | 'never' | 'always'
   feishuWebhookPort: string
   feishuWebhookPath: string
   feishuEncryptKey: string
   feishuVerificationToken: string
   feishuRenderMode: 'auto' | 'raw' | 'card'
+  feishuStreaming: boolean
+  feishuBlockStreaming: boolean
   feishuMediaMaxMb: string
   feishuDynamicEnabled: boolean
   feishuDynamicWorkspaceTemplate: string
@@ -255,56 +258,56 @@ const hints: Record<ChannelId, string> = {
   dingtalk: '按钉钉插件 schema 配置 Client 凭据、策略、网关与高级参数。'
 }
 
-const channelTabsMap: Record<ChannelId, Array<{ id: ChannelConfigPanel; label: string }>> = {
+const channelTabsMap: Record<ChannelId, Array<{ id: ChannelConfigPanel; label: string; icon: string }>> = {
   telegram: [
-    { id: 'credentials', label: '凭据配置' },
-    { id: 'access', label: '访问策略' },
-    { id: 'advanced', label: '高级配置' }
+    { id: 'credentials', label: '凭据设置', icon: '🔑' },
+    { id: 'access', label: '访问策略', icon: '🛡️' },
+    { id: 'advanced', label: '高级配置', icon: '⚙️' }
   ],
   discord: [
-    { id: 'credentials', label: '凭据配置' },
-    { id: 'access', label: '访问策略' },
-    { id: 'advanced', label: '高级配置' }
+    { id: 'credentials', label: '凭据设置', icon: '🔑' },
+    { id: 'access', label: '访问策略', icon: '🛡️' },
+    { id: 'advanced', label: '高级配置', icon: '⚙️' }
   ],
   wecom: [
-    { id: 'credentials', label: '凭据配置' },
-    { id: 'access', label: '访问策略' },
-    { id: 'connection', label: '连接模式' },
-    { id: 'advanced', label: '高级配置' }
+    { id: 'credentials', label: '凭据设置', icon: '🔑' },
+    { id: 'access', label: '访问策略', icon: '🛡️' },
+    { id: 'connection', label: '连接模式', icon: '🔗' },
+    { id: 'advanced', label: '高级配置', icon: '⚙️' }
   ],
   qq: [
-    { id: 'credentials', label: '凭据配置' },
-    { id: 'access', label: '访问策略' },
-    { id: 'advanced', label: '高级配置' }
+    { id: 'credentials', label: '凭据设置', icon: '🔑' },
+    { id: 'access', label: '访问策略', icon: '🛡️' },
+    { id: 'advanced', label: '高级配置', icon: '⚙️' }
   ],
   feishu: [
-    { id: 'credentials', label: '凭据配置' },
-    { id: 'access', label: '访问策略' },
-    { id: 'connection', label: '连接模式' },
-    { id: 'advanced', label: '高级配置' }
+    { id: 'credentials', label: '凭据设置', icon: '🔑' },
+    { id: 'access', label: '访问策略', icon: '🛡️' },
+    { id: 'connection', label: '连接模式', icon: '🔗' },
+    { id: 'advanced', label: '高级配置', icon: '⚙️' }
   ],
   dingtalk: [
-    { id: 'credentials', label: '凭据配置' },
-    { id: 'access', label: '访问策略' },
-    { id: 'advanced', label: '高级配置' }
+    { id: 'credentials', label: '凭据设置', icon: '🔑' },
+    { id: 'access', label: '访问策略', icon: '🛡️' },
+    { id: 'advanced', label: '高级配置', icon: '⚙️' }
   ],
   slack: [
-    { id: 'credentials', label: '凭据配置' },
-    { id: 'access', label: '访问策略' },
-    { id: 'connection', label: '连接模式' },
-    { id: 'advanced', label: '高级配置' }
+    { id: 'credentials', label: '凭据设置', icon: '🔑' },
+    { id: 'access', label: '访问策略', icon: '🛡️' },
+    { id: 'connection', label: '连接模式', icon: '🔗' },
+    { id: 'advanced', label: '高级配置', icon: '⚙️' }
   ],
   whatsapp: [
-    { id: 'credentials', label: '凭据配置' },
-    { id: 'access', label: '访问策略' },
-    { id: 'connection', label: '连接模式' },
-    { id: 'advanced', label: '高级配置' }
+    { id: 'credentials', label: '凭据设置', icon: '🔑' },
+    { id: 'access', label: '访问策略', icon: '🛡️' },
+    { id: 'connection', label: '连接模式', icon: '🔗' },
+    { id: 'advanced', label: '高级配置', icon: '⚙️' }
   ],
   imessage: [
-    { id: 'credentials', label: '凭据配置' },
-    { id: 'access', label: '访问策略' },
-    { id: 'connection', label: '连接模式' },
-    { id: 'advanced', label: '高级配置' }
+    { id: 'credentials', label: '凭据设置', icon: '🔑' },
+    { id: 'access', label: '访问策略', icon: '🛡️' },
+    { id: 'connection', label: '连接模式', icon: '🔗' },
+    { id: 'advanced', label: '高级配置', icon: '⚙️' }
   ]
 }
 
@@ -386,12 +389,15 @@ const defaultForm = (): ChannelForm => ({
   feishuAllowFrom: '',
   feishuGroupPolicy: 'allowlist',
   feishuGroupAllowFrom: '',
+  feishuRequireMention: true,
   feishuGroupCommandMentionBypass: 'single_bot',
   feishuWebhookPort: '',
   feishuWebhookPath: '/feishu/events',
   feishuEncryptKey: '',
   feishuVerificationToken: '',
   feishuRenderMode: 'auto',
+  feishuStreaming: false,
+  feishuBlockStreaming: false,
   feishuMediaMaxMb: '',
   feishuDynamicEnabled: false,
   feishuDynamicWorkspaceTemplate: '',
@@ -1064,7 +1070,6 @@ const publicPanelTabs = computed(() =>
     .filter(tab => tab.id !== 'credentials')
     .map(tab => ({
       ...tab,
-      label: `公共${tab.label}`,
     }))
 )
 const currentAccountTabLabel = computed(() => {
@@ -1500,6 +1505,7 @@ const applyFeishuConfig = (mutable: JsonRecord, form: ChannelForm) => {
   setListOrDelete(mutable, ['channels', 'feishu', 'allowFrom'], form.feishuAllowFrom)
   setPathValue(mutable, ['channels', 'feishu', 'groupPolicy'], form.feishuGroupPolicy)
   setListOrDelete(mutable, ['channels', 'feishu', 'groupAllowFrom'], form.feishuGroupAllowFrom)
+  setPathValue(mutable, ['channels', 'feishu', 'requireMention'], form.feishuRequireMention)
   setPathValue(
     mutable,
     ['channels', 'feishu', 'groupCommandMentionBypass'],
@@ -1516,6 +1522,8 @@ const applyFeishuConfig = (mutable: JsonRecord, form: ChannelForm) => {
   )
 
   setPathValue(mutable, ['channels', 'feishu', 'renderMode'], form.feishuRenderMode)
+  setPathValue(mutable, ['channels', 'feishu', 'streaming'], form.feishuStreaming)
+  setPathValue(mutable, ['channels', 'feishu', 'blockStreaming'], form.feishuBlockStreaming)
   setNumberOrDelete(mutable, ['channels', 'feishu', 'mediaMaxMb'], form.feishuMediaMaxMb, parsePositiveNumber)
 
   const dynamicAgentCreation: JsonRecord = {
@@ -1868,6 +1876,7 @@ const syncChannelsFromConfig = async () => {
       'allowlist'
     )
     forms.value.feishu.feishuGroupAllowFrom = listToText(readFeishuShared(['groupAllowFrom']))
+    forms.value.feishu.feishuRequireMention = readFeishuShared(['requireMention']) ?? true
     forms.value.feishu.feishuGroupCommandMentionBypass = enumOrDefault(
       readFeishuShared(['groupCommandMentionBypass']),
       ['single_bot', 'never', 'always'],
@@ -1882,6 +1891,8 @@ const syncChannelsFromConfig = async () => {
       ['auto', 'raw', 'card'],
       'auto'
     )
+    forms.value.feishu.feishuStreaming = Boolean(readFeishuShared(['streaming']))
+    forms.value.feishu.feishuBlockStreaming = Boolean(readFeishuShared(['blockStreaming']))
     forms.value.feishu.feishuMediaMaxMb = asString(readFeishuShared(['mediaMaxMb']))
     forms.value.feishu.feishuDynamicEnabled = Boolean(feishuDynamic.enabled)
     forms.value.feishu.feishuDynamicWorkspaceTemplate = asString(feishuDynamic.workspaceTemplate)
@@ -2328,30 +2339,36 @@ onUnmounted(() => {
               v-for="channel in channelList"
               :key="channel.id"
               type="button"
-              class="oc-subpanel w-full border p-3 text-left transition-all duration-200"
+              class="channel-card w-full border p-3 text-left transition-all duration-200 relative overflow-hidden"
               :class="[
                 selectedChannelId === channel.id
-                  ? 'border-[var(--oc-card-border-strong)]'
+                  ? 'border-[var(--primary-500)] selected'
                   : 'border-[var(--oc-card-border)]'
               ]"
-              :style="{ background: selectedChannelId === channel.id ? 'var(--oc-item-active)' : 'var(--oc-card-elevated)' }"
+              :style="{ background: selectedChannelId === channel.id ? '' : 'var(--oc-card-elevated)' }"
               @click="selectedChannelId = channel.id"
             >
               <div class="flex items-center gap-3">
-                <div class="flex h-9 w-9 items-center justify-center rounded-full border" style="border-color: var(--oc-divider); background: var(--oc-card);">
+                <div class="icon-container flex h-9 w-9 items-center justify-center rounded-full border" style="border-color: var(--oc-divider); background: var(--oc-card);">
                   <component :is="channel.icon" class="h-4 w-4" :style="{ color: channel.iconColor }" />
                 </div>
 
                 <div class="min-w-0 flex-1">
-                  <div class="text-lg font-semibold" style="color: var(--oc-text-primary);">{{ channel.name }}</div>
-                  <div class="mt-1 flex items-center gap-2 text-sm">
-                    <Check v-if="isConfigured(channel.id)" class="h-3.5 w-3.5" style="color: var(--oc-success);" />
-                    <X v-else class="h-3.5 w-3.5" style="color: var(--oc-text-muted);" />
-                    <span :style="{ color: isConfigured(channel.id) ? 'var(--oc-success)' : 'var(--oc-text-muted)' }">
+                  <div class="text-base font-semibold" style="color: var(--oc-text-primary);">{{ channel.name }}</div>
+                  <div class="mt-1.5 flex items-center gap-2">
+                    <span
+                      class="status-badge"
+                      :class="isConfigured(channel.id) ? 'configured' : 'unconfigured'"
+                    >
+                      <Check v-if="isConfigured(channel.id)" class="h-3 w-3" />
+                      <X v-else class="h-3 w-3" />
                       {{ isConfigured(channel.id) ? '已配置' : '未配置' }}
                     </span>
                     <span style="color: var(--oc-text-quiet);">·</span>
-                    <span :style="{ color: forms[channel.id].enabled ? 'var(--oc-success)' : 'var(--oc-text-muted)' }">
+                    <span
+                      class="status-badge"
+                      :class="forms[channel.id].enabled ? 'configured' : 'unconfigured'"
+                    >
                       {{ forms[channel.id].enabled ? '已启用' : '已停用' }}
                     </span>
                   </div>
@@ -2479,16 +2496,19 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <button
-              v-for="tab in publicPanelTabs"
-              :key="tab.id"
-              type="button"
-              class="oc-toolbar-btn h-8 px-3 text-sm"
-              :style="tab.id === selectedPanel ? { background: 'var(--oc-item-active)', borderColor: 'var(--oc-card-border-strong)', color: 'var(--oc-text-primary)' } : undefined"
-              @click="selectedPanel = tab.id"
-            >
-              {{ tab.label }}
-            </button>
+            <div class="segmented-control">
+              <button
+                v-for="tab in publicPanelTabs"
+                :key="tab.id"
+                type="button"
+                class="segmented-btn"
+                :class="{ 'selected': tab.id === selectedPanel }"
+                @click="selectedPanel = tab.id"
+              >
+                <span class="segmented-btn-icon">{{ tab.icon }}</span>
+                <span class="segmented-btn-label">{{ tab.label }}</span>
+              </button>
+            </div>
           </div>
           <p class="mt-2 text-xs" style="color: var(--oc-text-muted);">{{ currentPanelScopeHint }}</p>
         </div>
@@ -2807,10 +2827,10 @@ onUnmounted(() => {
               <div>
                 <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">DM 策略（channels.telegram.dmPolicy）</label>
                 <select v-model="currentForm.telegramDmPolicy" class="oc-select" :disabled="!canConfigureCurrentChannel">
-                  <option value="pairing">pairing（推荐）</option>
-                  <option value="allowlist">allowlist</option>
-                  <option value="open">open</option>
-                  <option value="disabled">disabled</option>
+                  <option value="pairing">🔐 配对模式（推荐）</option>
+                  <option value="allowlist">✅ 白名单模式</option>
+                  <option value="open">🌐 公开访问</option>
+                  <option value="disabled">🚫 禁止访问</option>
                 </select>
               </div>
 
@@ -2819,7 +2839,7 @@ onUnmounted(() => {
                 <textarea
                   class="oc-textarea"
                   :value="currentForm.telegramAllowFrom"
-                  placeholder="每行一个 user id，open 模式建议包含 *"
+                  placeholder="每行一个 user id，公开访问模式建议包含 *"
                   :disabled="!canConfigureCurrentChannel"
                   @input="(event) => { currentForm.telegramAllowFrom = (event.target as HTMLTextAreaElement).value }"
                 />
@@ -2828,9 +2848,9 @@ onUnmounted(() => {
               <div>
                 <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">群组策略（channels.telegram.groupPolicy）</label>
                 <select v-model="currentForm.telegramGroupPolicy" class="oc-select" :disabled="!canConfigureCurrentChannel">
-                  <option value="allowlist">allowlist（推荐）</option>
-                  <option value="open">open</option>
-                  <option value="disabled">disabled</option>
+                  <option value="allowlist">✅ 白名单模式（推荐）</option>
+                  <option value="open">🌐 公开访问</option>
+                  <option value="disabled">🚫 禁止访问</option>
                 </select>
               </div>
 
@@ -2871,10 +2891,10 @@ onUnmounted(() => {
               <div>
                 <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">DM 策略（channels.discord.dm.policy）</label>
                 <select v-model="currentForm.discordDmPolicy" class="oc-select" :disabled="!canConfigureCurrentChannel">
-                  <option value="pairing">pairing（推荐）</option>
-                  <option value="allowlist">allowlist</option>
-                  <option value="open">open</option>
-                  <option value="disabled">disabled</option>
+                  <option value="pairing">🔐 配对模式（推荐）</option>
+                  <option value="allowlist">✅ 白名单模式</option>
+                  <option value="open">🌐 公开访问</option>
+                  <option value="disabled">🚫 禁止访问</option>
                 </select>
               </div>
 
@@ -2892,9 +2912,9 @@ onUnmounted(() => {
               <div>
                 <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">群组策略（channels.discord.groupPolicy）</label>
                 <select v-model="currentForm.discordGroupPolicy" class="oc-select" :disabled="!canConfigureCurrentChannel">
-                  <option value="allowlist">allowlist（推荐）</option>
-                  <option value="open">open</option>
-                  <option value="disabled">disabled</option>
+                  <option value="allowlist">✅ 白名单模式（推荐）</option>
+                  <option value="open">🌐 公开访问</option>
+                  <option value="disabled">🚫 禁止访问</option>
                 </select>
               </div>
 
@@ -2914,10 +2934,10 @@ onUnmounted(() => {
               <div>
                 <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">DM 策略（channels.slack.dmPolicy）</label>
                 <select v-model="currentForm.slackDmPolicy" class="oc-select" :disabled="!canConfigureCurrentChannel">
-                  <option value="pairing">pairing（推荐）</option>
-                  <option value="allowlist">allowlist</option>
-                  <option value="open">open</option>
-                  <option value="disabled">disabled</option>
+                  <option value="pairing">🔐 配对模式（推荐）</option>
+                  <option value="allowlist">✅ 白名单模式</option>
+                  <option value="open">🌐 公开访问</option>
+                  <option value="disabled">🚫 禁止访问</option>
                 </select>
               </div>
 
@@ -2935,9 +2955,9 @@ onUnmounted(() => {
               <div>
                 <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">群组策略（channels.slack.groupPolicy）</label>
                 <select v-model="currentForm.slackGroupPolicy" class="oc-select" :disabled="!canConfigureCurrentChannel">
-                  <option value="allowlist">allowlist（推荐）</option>
-                  <option value="open">open</option>
-                  <option value="disabled">disabled</option>
+                  <option value="allowlist">✅ 白名单模式（推荐）</option>
+                  <option value="open">🌐 公开访问</option>
+                  <option value="disabled">🚫 禁止访问</option>
                 </select>
               </div>
 
@@ -3155,6 +3175,21 @@ onUnmounted(() => {
                   :disabled="!canConfigureCurrentChannel"
                   @input="(event) => { currentForm.feishuGroupAllowFrom = (event.target as HTMLTextAreaElement).value }"
                 />
+              </div>
+
+              <div>
+                <label class="inline-flex items-center gap-2 text-sm font-medium mb-2" style="color: var(--oc-text-secondary);">
+                  <input
+                    type="checkbox"
+                    :checked="currentForm.feishuRequireMention"
+                    :disabled="!canConfigureCurrentChannel"
+                    @change="(event) => { currentForm.feishuRequireMention = (event.target as HTMLInputElement).checked }"
+                  />
+                  群聊需要@机器人（channels.feishu.requireMention）
+                </label>
+                <p class="text-xs" style="color: var(--oc-text-muted);">
+                  关闭后任何消息都会触发回复，可能导致频繁触发
+                </p>
               </div>
 
               <div>
@@ -3662,10 +3697,40 @@ onUnmounted(() => {
               <div>
                 <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">渲染模式（channels.feishu.renderMode）</label>
                 <select v-model="currentForm.feishuRenderMode" class="oc-select" :disabled="!canConfigureCurrentChannel">
-                  <option value="auto">auto</option>
-                  <option value="raw">raw</option>
-                  <option value="card">card</option>
+                  <option value="auto">auto（自动选择）</option>
+                  <option value="raw">raw（纯文本，支持消息引用）</option>
+                  <option value="card">card（卡片，推荐用于流式）</option>
                 </select>
+              </div>
+
+              <div>
+                <label class="inline-flex items-center gap-2 text-sm font-medium mb-2" style="color: var(--oc-text-secondary);">
+                  <input
+                    type="checkbox"
+                    :checked="currentForm.feishuStreaming"
+                    :disabled="!canConfigureCurrentChannel"
+                    @change="(event) => { currentForm.feishuStreaming = (event.target as HTMLInputElement).checked }"
+                  />
+                  启用流式输出（channels.feishu.streaming）
+                </label>
+                <p class="text-xs" style="color: var(--oc-text-muted);">
+                  消息逐步显示，类似真人打字体验。需要配合官方插件 @larksuiteoapi/feishu-openclaw-plugin 使用。
+                </p>
+              </div>
+
+              <div v-if="currentForm.feishuStreaming">
+                <label class="inline-flex items-center gap-2 text-sm font-medium mb-2" style="color: var(--oc-text-secondary);">
+                  <input
+                    type="checkbox"
+                    :checked="currentForm.feishuBlockStreaming"
+                    :disabled="!canConfigureCurrentChannel"
+                    @change="(event) => { currentForm.feishuBlockStreaming = (event.target as HTMLInputElement).checked }"
+                  />
+                  启用块级流式输出（channels.feishu.blockStreaming）
+                </label>
+                <p class="text-xs" style="color: var(--oc-text-muted);">
+                  长回复分块发送，优化阅读体验。
+                </p>
               </div>
 
               <div>
@@ -3898,3 +3963,237 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* ═══════════════════════════════════════════════════════════
+   消息渠道页面优化样式 - 方案一：渐进式优化
+   ═══════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════
+   左侧渠道列表优化 - Channel List Optimization
+   ═══════════════════════════════════════════════════════════ */
+
+.channel-card {
+  position: relative;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 侧边指示器 - 选中时的左侧强调边框 */
+.channel-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--primary-500);
+  opacity: 0;
+  transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.channel-card.selected::before {
+  opacity: 1;
+}
+
+/* 选中状态：渐变背景 */
+.channel-card.selected {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary-500) 8%, transparent) 0%,
+    transparent 100%
+  ) !important;
+}
+
+/* 悬停效果 */
+.channel-card:hover {
+  transform: translateX(2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* 图标容器优化 */
+.icon-container {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.channel-card.selected .icon-container {
+  background: linear-gradient(135deg,
+    var(--primary-500) 0%,
+    var(--primary-600) 100%
+  ) !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-500) 40%, transparent);
+}
+
+.channel-card.selected .icon-container svg {
+  color: #ffffff !important;
+  transform: scale(1.1);
+}
+
+/* 状态徽章 */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.status-badge.configured {
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+}
+
+.status-badge.unconfigured {
+  background: color-mix(in srgb, var(--oc-text-muted) 10%, transparent);
+  color: var(--oc-text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   右侧策略下拉框优化 - Strategy Select Optimization
+   ═══════════════════════════════════════════════════════════ */
+
+/* 优化原生 select 样式 */
+select.oc-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%2314b8a6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+select.oc-select:hover {
+  border-color: var(--primary-500);
+}
+
+select.oc-select:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-500) 20%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   深色模式适配 - Dark Mode Adaptation
+   ═══════════════════════════════════════════════════════════ */
+
+:root[data-theme='dark'] .status-badge.configured {
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+:root[data-theme='dark'] .status-badge.unconfigured {
+  background: color-mix(in srgb, var(--oc-text-muted) 15%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   分段控制器样式 - Segmented Control
+   ═══════════════════════════════════════════════════════════ */
+
+/* 分段控制器容器 */
+.segmented-control {
+  display: inline-flex;
+  background: var(--oc-card-elevated);
+  border: 1px solid var(--oc-card-border);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  gap: 4px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* 分段按钮基础样式 */
+.segmented-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--oc-text-secondary);
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  white-space: nowrap;
+}
+
+/* 图标样式 */
+.segmented-btn-icon {
+  font-size: 14px;
+  line-height: 1;
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 文字样式 */
+.segmented-btn-label {
+  letter-spacing: 0.01em;
+}
+
+/* 选中状态 */
+.segmented-btn.selected {
+  background: linear-gradient(135deg,
+    var(--primary-500) 0%,
+    var(--primary-600) 100%
+  );
+  color: #ffffff;
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--primary-500) 40%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* 选中状态：图标轻微放大 */
+.segmented-btn.selected .segmented-btn-icon {
+  transform: scale(1.15);
+}
+
+/* 悬停状态 */
+.segmented-btn:not(.selected):hover {
+  background: var(--oc-item-hover);
+  color: var(--oc-text-primary);
+}
+
+/* 点击状态 */
+.segmented-btn:not(.selected):active {
+  background: var(--oc-item-active);
+  transform: scale(0.98);
+}
+
+/* 选中状态：轻微下沉效果 */
+.segmented-btn.selected:active {
+  transform: scale(0.98);
+  box-shadow:
+    0 1px 4px color-mix(in srgb, var(--primary-500) 30%, transparent),
+    0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+/* 焦点状态 - 无障碍支持 */
+.segmented-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--oc-card-background), 0 0 0 4px var(--primary-500);
+}
+
+/* 暗黑模式适配 */
+:root[data-theme='dark'] .segmented-control {
+  background: var(--oc-card-elevated);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+:root[data-theme='dark'] .segmented-btn:not(.selected):hover {
+  background: color-mix(in srgb, var(--primary-500) 10%, transparent);
+}
+
+/* 响应式：移动端优化 */
+@media (max-width: 640px) {
+  .segmented-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .segmented-btn-icon {
+    font-size: 12px;
+  }
+}
+</style>

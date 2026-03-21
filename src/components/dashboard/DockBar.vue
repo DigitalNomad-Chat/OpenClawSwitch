@@ -7,14 +7,10 @@ import {
   Stethoscope,
   MessageSquare,
   Settings2,
-  Maximize2
+  Package,
+  Users,
+  Clock
 } from 'lucide-vue-next'
-
-interface NavigationItem {
-  id: string
-  label: string
-  icon: any
-}
 
 interface DockItem {
   id: string
@@ -60,6 +56,24 @@ const dockItems = computed<DockItem[]>(() => [
     active: props.activeNav === 'channels'
   },
   {
+    id: 'skill-presets',
+    label: '技能预设',
+    icon: Package,
+    active: props.activeNav === 'skill-presets'
+  },
+  {
+    id: 'agent-workspaces',
+    label: 'Agent Workspaces',
+    icon: Users,
+    active: props.activeNav === 'agent-workspaces'
+  },
+  {
+    id: 'cron-jobs',
+    label: 'Cron 定时任务',
+    icon: Clock,
+    active: props.activeNav === 'cron-jobs'
+  },
+  {
     id: 'settings',
     label: '系统设置',
     icon: Settings2,
@@ -74,10 +88,6 @@ const emit = defineEmits<{
 const handleItemClick = (id: string) => {
   emit('navigate', id)
 }
-
-const handleItemHover = (event: MouseEvent, label: string) => {
-  // 可以在这里添加悬停提示逻辑
-}
 </script>
 
 <template>
@@ -91,7 +101,6 @@ const handleItemHover = (event: MouseEvent, label: string) => {
         class="dock-item"
         :class="{ 'dock-item-active': item.active }"
         @click="handleItemClick(item.id)"
-        @mouseenter="handleItemHover($event, item.label)"
       >
         <component :is="item.icon" class="dock-icon" />
         <span class="dock-label">{{ item.label }}</span>
@@ -114,11 +123,6 @@ const handleItemHover = (event: MouseEvent, label: string) => {
   display: flex;
   justify-content: center;
   padding: var(--spacing-4) var(--spacing-6);
-  background: linear-gradient(
-    to top,
-    var(--oc-window) 0%,
-    transparent 100%
-  );
   z-index: 100;
   pointer-events: none;
 }

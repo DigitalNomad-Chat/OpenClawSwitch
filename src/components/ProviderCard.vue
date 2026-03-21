@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { cn } from '@/lib/utils'
-import { Trash2, Star, Shield, ChevronDown, ChevronUp, Cpu, Brain, Zap, Plus, X, Pencil } from 'lucide-vue-next'
+import { Trash2, Star, Shield, ChevronDown, ChevronUp, Cpu, Brain, Zap, Plus, X, Pencil, Server } from 'lucide-vue-next'
 import Button from './ui/Button.vue'
 import type { ProviderInfo, ModelInfo } from '@/types/config'
 
@@ -54,28 +54,42 @@ const handleSetFallback = (model?: ModelInfo) => {
   >
     <div class="flex items-start justify-between gap-3">
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2 mb-1">
-          <h3 class="font-semibold truncate" style="color: var(--oc-text-primary);">{{ provider.name }}</h3>
-          <Star v-if="containsPrimary" class="w-4 h-4 flex-shrink-0" style="color: var(--oc-accent);" title="包含主模型" />
-        </div>
-        <div class="text-xs space-y-0.5" style="color: var(--oc-text-muted);">
-          <p class="truncate">{{ provider.baseUrl }}</p>
-          <div class="flex items-center gap-3">
-            <span :style="{ color: provider.hasApiKey ? 'var(--oc-success)' : 'var(--oc-text-muted)' }">
-              Key: {{ provider.hasApiKey ? '✓' : '-' }}
-            </span>
-            <span v-if="provider.api">API: {{ provider.api }}</span>
+        <!-- 服务商图标 + 名称 -->
+        <div class="flex items-center gap-2.5 mb-2">
+          <div class="provider-icon">
+            <span class="provider-initial">{{ provider.name.charAt(0).toUpperCase() }}</span>
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-semibold truncate" style="color: var(--oc-text-primary);">
+                {{ provider.name }}
+              </h3>
+              <Star v-if="containsPrimary" class="w-3.5 h-3.5 flex-shrink-0" style="color: var(--oc-accent);" />
+            </div>
+            <p class="text-xs truncate mt-0.5" style="color: var(--oc-text-muted);">
+              {{ provider.baseUrl }}
+            </p>
           </div>
         </div>
 
-        <div class="mt-3">
-          <button @click="showModels = !showModels"
-                  class="flex items-center gap-1 text-xs transition-colors"
-                  style="color: var(--oc-text-muted);">
-            <Cpu class="w-3 h-3" />
-            <span>{{ provider.modelCount }} 个模型</span>
-            <component :is="showModels ? ChevronUp : ChevronDown" class="w-3 h-3" />
-          </button>
+        <!-- 状态信息 -->
+        <div class="flex items-center gap-2 text-xs ml-[calc(36px+10px)]" style="color: var(--oc-text-muted);">
+          <span :style="{ color: provider.hasApiKey ? 'var(--oc-success)' : 'var(--oc-text-quiet)' }">
+            {{ provider.hasApiKey ? '✓' : '○' }} Key
+          </span>
+          <span style="color: var(--oc-divider-soft);">·</span>
+          <span>{{ provider.api || 'API' }}</span>
+        </div>
+
+        <!-- 模型折叠按钮 -->
+        <button @click="showModels = !showModels"
+                class="flex items-center gap-1.5 text-xs mt-2 transition-colors ml-[calc(36px+10px)]"
+                style="color: var(--oc-text-secondary);">
+          <Server class="w-3.5 h-3.5" />
+          <span>{{ provider.modelCount }} 个模型</span>
+          <component :is="showModels ? ChevronUp : ChevronDown" class="w-3 h-3" />
+        </button>
 
           <div v-if="showModels" class="mt-2 space-y-1 pl-2 border-l-2" style="border-color: var(--oc-divider);">
             <div v-for="model in provider.models" :key="model.id"
@@ -111,7 +125,6 @@ const handleSetFallback = (model?: ModelInfo) => {
               添加模型
             </button>
           </div>
-        </div>
       </div>
 
       <div class="flex flex-col gap-1 flex-shrink-0">
@@ -135,5 +148,49 @@ const handleSetFallback = (model?: ModelInfo) => {
 .oc-provider-card-active {
   border-color: color-mix(in srgb, var(--oc-input-focus) 78%, var(--oc-card-border) 22%);
   box-shadow: none;
+}
+
+/* 首字母图标容器 */
+.provider-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg,
+    var(--primary-500) 0%,
+    var(--primary-600) 100%
+  );
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--primary-500) 35%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+}
+
+.provider-initial {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* 暗黑模式适配 */
+:root[data-theme='dark'] .provider-icon {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary-500) 90%, white) 0%,
+    color-mix(in srgb, var(--primary-600) 90%, white) 100%
+  );
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--primary-500) 25%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* 悬停效果 */
+.oc-provider-card:hover .provider-icon {
+  box-shadow:
+    0 4px 12px color-mix(in srgb, var(--primary-500) 45%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 </style>
