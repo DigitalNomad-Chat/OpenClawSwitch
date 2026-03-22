@@ -189,14 +189,33 @@ pub struct SkillsBySource {
 
 /// 获取预设资源目录路径
 fn get_presets_resource_dir() -> Result<PathBuf, String> {
+    // 开发环境优先：检查项目目录
+    #[cfg(debug_assertions)]
+    {
+        // 开发环境：src-tauri/resources/presets
+        if let Ok(mut exe_path) = std::env::current_exe() {
+            // 从 target/debug/clawlite 向上找到 src-tauri 目录
+            if let Some(src_tauri) = exe_path
+                .parent()  // target/debug
+                .and_then(|p| p.parent())  // target
+                .and_then(|p| p.parent())  // 项目根
+                .map(|p| p.join("src-tauri"))
+            {
+                let dev_presets = src_tauri.join("resources").join("presets");
+                if dev_presets.exists() {
+                    return Ok(dev_presets);
+                }
+            }
+        }
+    }
+
+    // 生产环境：使用 .app 结构
     let exe_path = std::env::current_exe()
         .map_err(|e| format!("获取执行路径失败: {}", e))?;
 
-    // macOS .app 结构: Clawlite.app/Contents/MacOS/clawlite
-    // 资源在: Clawlite.app/Contents/Resources/resources/presets
     let presets_dir = if cfg!(target_os = "macos") {
-        // 从 exe: Contents/MacOS/clawlite
-        // 到: Contents/Resources/resources/presets
+        // macOS .app 结构: Clawlite.app/Contents/MacOS/clawlite
+        // 资源在: Clawlite.app/Contents/Resources/resources/presets
         exe_path
             .parent()  // MacOS
             .and_then(|p| p.parent())  // Contents
@@ -652,6 +671,8 @@ fn find_skill_source_dir(skills_base_dir: &std::path::Path, path: &str) -> Resul
 /// 安装技能
 #[tauri::command]
 pub fn install_skill(skill_id: String) -> Result<String, String> {
+    println!("🔧 [安装] 开始安装技能: {}", skill_id);
+
     let manifest = read_manifest()?;
     let preset = manifest
         .skills
@@ -659,20 +680,33 @@ pub fn install_skill(skill_id: String) -> Result<String, String> {
         .find(|s| s.id == skill_id)
         .ok_or_else(|| format!("未找到技能: {}", skill_id))?;
 
+    println!("📋 [安装] 找到预设: {} (path: {})", preset.name, preset.path);
+
     let presets_dir = get_presets_resource_dir()?;
     let skills_dir = presets_dir.join("skills");
+
+    println!("📁 [安装] 预设目录: {:?}", presets_dir);
+    println!("📁 [安装] skills 目录: {:?}", skills_dir);
 
     // 尝试多种方式查找源目录
     let source_dir = find_skill_source_dir(&skills_dir, &preset.path)?;
 
+    println!("📂 [安装] 源目录: {:?}", source_dir);
+
     let target_dir = get_skills_dir()?
         .join(&skill_id);
+
+    println!("📂 [安装] 目标目录: {:?}", target_dir);
 
     fs::create_dir_all(&target_dir)
         .map_err(|e| format!("创建目标目录失败: {}", e))?;
 
+    println!("📋 [安装] 开始拷贝文件...");
+
     copy_dir(&source_dir, &target_dir)
         .map_err(|e| format!("拷贝 skill 文件失败: {}", e))?;
+
+    println!("✅ [安装] 文件拷贝完成");
 
     let mut installed = read_installed_skills()?;
 
@@ -688,6 +722,7 @@ pub fn install_skill(skill_id: String) -> Result<String, String> {
 
     save_installed_skills(&installed)?;
 
+    println!("✅ [安装] 技能 '{}' 安装成功", preset.name);
     Ok(format!("技能 '{}' 安装成功", preset.name))
 }
 
@@ -702,21 +737,23 @@ pub fn uninstall_skill(skill_id: String) -> Result<String, String> {
         .ok_or_else(|| format!("未找到技能: {}", skill_id))?;
 
     let mut installed = read_installed_skills()?;
+    let skill_dir = get_skills_dir()?.join(&skill_id);
 
-    if installed.skills.remove(&skill_id).is_none() {
+    // 检查技能目录是否存在
+    if !skill_dir.exists() {
         return Err(format!("技能 '{}' 未安装", preset.name));
     }
 
-    installed.updated_at = chrono_now();
-    save_installed_skills(&installed)?;
-
-    let skill_dir = get_skills_dir()?
-        .join(&skill_id);
-
-    if skill_dir.exists() {
-        fs::remove_dir_all(&skill_dir)
-            .map_err(|e| format!("删除 skill 文件失败: {}", e))?;
+    // 移除安装记录（如果存在）
+    let had_record = installed.skills.remove(&skill_id).is_some();
+    if had_record {
+        installed.updated_at = chrono_now();
+        save_installed_skills(&installed)?;
     }
+
+    // 删除技能目录
+    fs::remove_dir_all(&skill_dir)
+        .map_err(|e| format!("删除 skill 文件失败: {}", e))?;
 
     Ok(format!("技能 '{}' 已卸载", preset.name))
 }
@@ -725,13 +762,28 @@ pub fn uninstall_skill(skill_id: String) -> Result<String, String> {
 #[tauri::command]
 pub fn enable_skill(skill_id: String) -> Result<String, String> {
     let mut installed = read_installed_skills()?;
+    let skill_dir = get_skills_dir()?.join(&skill_id);
 
-    let skill_record = installed
-        .skills
-        .get_mut(&skill_id)
-        .ok_or_else(|| format!("技能 '{}' 未安装", skill_id))?;
+    // 检查技能目录是否存在
+    if !skill_dir.exists() {
+        return Err(format!("技能 '{}' 未安装", skill_id));
+    }
 
-    skill_record.enabled = true;
+    // 检查是否已有记录
+    if let Some(skill_record) = installed.skills.get_mut(&skill_id) {
+        // 已有记录，直接更新启用状态
+        skill_record.enabled = true;
+    } else {
+        // 没有记录（手动安装的技能），创建新记录
+        let skill_record = InstalledSkill {
+            skill_id: skill_id.clone(),
+            installed_at: chrono_now(),
+            enabled: true,
+            installed_version: None,
+        };
+        installed.skills.insert(skill_id.clone(), skill_record);
+    }
+
     installed.updated_at = chrono_now();
     save_installed_skills(&installed)?;
 
@@ -742,13 +794,28 @@ pub fn enable_skill(skill_id: String) -> Result<String, String> {
 #[tauri::command]
 pub fn disable_skill(skill_id: String) -> Result<String, String> {
     let mut installed = read_installed_skills()?;
+    let skill_dir = get_skills_dir()?.join(&skill_id);
 
-    let skill_record = installed
-        .skills
-        .get_mut(&skill_id)
-        .ok_or_else(|| format!("技能 '{}' 未安装", skill_id))?;
+    // 检查技能目录是否存在
+    if !skill_dir.exists() {
+        return Err(format!("技能 '{}' 未安装", skill_id));
+    }
 
-    skill_record.enabled = false;
+    // 检查是否已有记录
+    if let Some(skill_record) = installed.skills.get_mut(&skill_id) {
+        // 已有记录，直接更新启用状态
+        skill_record.enabled = false;
+    } else {
+        // 没有记录（手动安装的技能），创建新记录
+        let skill_record = InstalledSkill {
+            skill_id: skill_id.clone(),
+            installed_at: chrono_now(),
+            enabled: false,
+            installed_version: None,
+        };
+        installed.skills.insert(skill_id.clone(), skill_record);
+    }
+
     installed.updated_at = chrono_now();
     save_installed_skills(&installed)?;
 

@@ -111,13 +111,18 @@ fn get_agent_workspaces_resource_dir() -> Result<PathBuf, String> {
     } else {
         #[cfg(debug_assertions)]
         {
-            let src_tauri_dir = exe_path.parent().and_then(|p| p.parent());
-            if let Some(dir) = src_tauri_dir {
-                let presets_dir = dir.join("resources").join("presets");
-                if presets_dir.exists() {
-                    let manifest_path = presets_dir.join("agent-workspaces-manifest.json");
+            // 开发环境：src-tauri/resources/presets
+            if let Some(src_tauri) = exe_path
+                .parent()  // target/debug
+                .and_then(|p| p.parent())  // target
+                .and_then(|p| p.parent())  // 项目根
+                .map(|p| p.join("src-tauri"))
+            {
+                let dev_presets = src_tauri.join("resources").join("presets");
+                if dev_presets.exists() {
+                    let manifest_path = dev_presets.join("agent-workspaces-manifest.json");
                     if manifest_path.exists() {
-                        return Ok(presets_dir);
+                        return Ok(dev_presets);
                     }
                 }
             }

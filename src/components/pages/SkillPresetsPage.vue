@@ -371,7 +371,8 @@ async function executeInstall(skill: SkillWithStatus) {
     }
   } catch (error) {
     console.error('安装失败:', error)
-    showToast(`"${skill.preset.name}" 安装失败：${error}`, 'error')
+    const errorMsg = typeof error === 'string' ? error : (error as any)?.message || JSON.stringify(error)
+    showToast(`"${skill.preset.name}" 安装失败：${errorMsg}`, 'error')
   } finally {
     installingSkillId.value = null
   }
@@ -412,7 +413,8 @@ async function handleUninstall(skill: SkillWithStatus) {
     showToast(`"${skill.preset.name}" 已卸载`, 'success')
   } catch (error) {
     console.error('卸载失败:', error)
-    showToast(`卸载失败：${error}`, 'error')
+    const errorMsg = typeof error === 'string' ? error : (error as any)?.message || JSON.stringify(error)
+    showToast(`卸载失败：${errorMsg}`, 'error')
   } finally {
     installingSkillId.value = null
   }
@@ -1129,6 +1131,49 @@ function getAgentDisplayName(agentName: string): string {
       </div>
     </Teleport>
 
+    <!-- 安装确认弹窗 -->
+    <Teleport to="body">
+      <div v-if="installConfirmModalOpen && skillToInstall" class="modal-overlay" @click.self="closeInstallConfirm">
+        <div class="modal-content install-confirm-modal">
+          <div class="modal-header">
+            <h2>
+              <Download class="w-5 h-5 mr-2" style="color: var(--oc-accent);" />
+              确认安装技能
+            </h2>
+            <Button variant="ghost" size="sm" @click="closeInstallConfirm">
+              <X class="w-5 h-5" />
+            </Button>
+          </div>
+
+          <div class="modal-body">
+            <p class="install-skill-name">您确定要安装 "<strong>{{ skillToInstall.preset.name }}</strong>" 吗？</p>
+            <p class="install-skill-id">{{ skillToInstall.preset.id }}</p>
+            <p class="install-skill-description">{{ skillToInstall.preset.description }}</p>
+
+            <!-- 依赖信息 -->
+            <div v-if="skillToInstall.missingDependencies.length > 0" class="install-warning">
+              <AlertTriangle class="w-4 h-4" />
+              <div>
+                <strong>注意：</strong>
+                <p>此技能有以下依赖需要安装：</p>
+                <ul>
+                  <li v-for="dep in skillToInstall.missingDependencies" :key="dep">{{ dep }}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <Button variant="outline" @click="closeInstallConfirm">取消</Button>
+            <Button variant="default" @click="executeInstall(skillToInstall)">
+              <Download class="w-4 h-4 mr-1" />
+              确认安装
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- 删除确认弹窗 -->
     <Teleport to="body">
       <div v-if="deleteConfirmModalOpen && skillToDelete" class="modal-overlay" @click.self="closeDeleteConfirm">
@@ -1802,6 +1847,54 @@ function getAgentDisplayName(agentName: string): string {
   word-break: break-all;
 }
 
+/* 安装确认弹窗 */
+.install-confirm-modal {
+  max-width: 540px;
+}
+
+.install-skill-name {
+  font-size: 0.9375rem;
+  color: var(--oc-text-primary);
+  margin: 0 0 0.5rem;
+}
+
+.install-skill-id {
+  font-size: 0.8125rem;
+  color: var(--oc-text-muted);
+  font-family: var(--font-mono);
+  margin: 0 0 0.75rem;
+}
+
+.install-skill-description {
+  font-size: 0.875rem;
+  color: var(--oc-text-secondary);
+  line-height: 1.5;
+  margin: 0 0 1rem;
+}
+
+.install-warning {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--oc-warning);
+  border-radius: 0.5rem;
+  color: white;
+  font-size: 0.875rem;
+}
+
+.install-warning p {
+  margin: 0 0 0.5rem;
+}
+
+.install-warning ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.install-warning li {
+  margin-bottom: 0.25rem;
+}
+
 /* 删除确认弹窗 */
 .delete-skill-name {
   font-size: 0.9375rem;
@@ -1843,6 +1936,10 @@ function getAgentDisplayName(agentName: string): string {
   z-index: 2000;
   min-width: 320px;
   max-width: 480px;
+  /* 添加默认背景色，确保即使类型类未应用也有背景 */
+  background: var(--oc-card);
+  color: var(--oc-text-primary);
+  border: 1px solid var(--oc-divider);
 }
 
 .toast-success {
@@ -1851,7 +1948,7 @@ function getAgentDisplayName(agentName: string): string {
 }
 
 .toast-error {
-  background: var(--oc-error);
+  background: var(--oc-danger);
   color: white;
 }
 
@@ -1896,5 +1993,32 @@ function getAgentDisplayName(agentName: string): string {
   .skills-grid {
     grid-template-columns: 1fr;
   }
+}
+</style>
+
+<!-- Toast 样式（非scoped，因为toast被teleport到body） -->
+<style>
+.toast-notification {
+  position: fixed !important;
+  z-index: 2000 !important;
+  pointer-events: auto;
+}
+
+.toast-success {
+  background: var(--oc-success) !important;
+  color: white !important;
+  border-color: transparent !important;
+}
+
+.toast-error {
+  background: var(--oc-danger) !important;
+  color: white !important;
+  border-color: transparent !important;
+}
+
+.toast-warning {
+  background: var(--oc-warning) !important;
+  color: var(--oc-text-primary) !important;
+  border-color: transparent !important;
 }
 </style>

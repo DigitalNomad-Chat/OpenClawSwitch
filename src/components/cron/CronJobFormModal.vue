@@ -156,19 +156,69 @@ const cronExprDescription = computed(() => {
   return null
 })
 
-const canSave = computed(() => {
-  // 必填字段检查
-  if (!formData.value.name.trim()) return false
-  if (!formData.value.agentId.trim()) return false
-  if (!formData.value.cronExpr.trim()) return false
-  if (!cronExprValid.value) return false
-  if (!formData.value.message.trim()) return false
+// 收集所有验证错误，用于显示给用户
+const validationErrors = computed(() => {
+  const errors: string[] = []
 
-  // 投递模式检查（announce 模式必须选择投递目标）
+  if (!formData.value.name.trim()) {
+    errors.push('任务名称不能为空')
+  }
+  if (!formData.value.agentId.trim()) {
+    errors.push('请选择执行任务的 Agent')
+  }
+  if (!formData.value.cronExpr.trim()) {
+    errors.push('Cron 表达式不能为空')
+  } else if (!cronExprValid.value) {
+    errors.push('Cron 表达式格式无效')
+  }
+  if (!formData.value.message.trim()) {
+    errors.push('消息内容不能为空')
+  }
   if (formData.value.deliveryMode === 'announce') {
-    if (!deliveryTargetSelectValue.value) return false
+    if (!formData.value.deliveryChannel || !formData.value.deliveryTarget) {
+      errors.push('请选择投递目标（投递模式为"投递消息"时必须选择）')
+    }
   }
 
+  return errors
+})
+
+const canSave = computed(() => {
+  // 必填字段检查
+  if (!formData.value.name.trim()) {
+    console.log('[CronJobFormModal] canSave = false: 任务名称为空')
+    return false
+  }
+  if (!formData.value.agentId.trim()) {
+    console.log('[CronJobFormModal] canSave = false: Agent为空')
+    return false
+  }
+  if (!formData.value.cronExpr.trim()) {
+    console.log('[CronJobFormModal] canSave = false: Cron表达式为空')
+    return false
+  }
+  if (!cronExprValid.value) {
+    console.log('[CronJobFormModal] canSave = false: Cron表达式无效')
+    return false
+  }
+  if (!formData.value.message.trim()) {
+    console.log('[CronJobFormModal] canSave = false: 消息为空')
+    return false
+  }
+
+  // 投递模式检查（announce 模式必须选择投递目标）
+  // 注意：检查 formData 中的实际数据，而不是 UI 组件的状态
+  if (formData.value.deliveryMode === 'announce') {
+    if (!formData.value.deliveryChannel || !formData.value.deliveryTarget) {
+      console.log('[CronJobFormModal] canSave = false: 投递目标未选择', {
+        channel: formData.value.deliveryChannel,
+        target: formData.value.deliveryTarget
+      })
+      return false
+    }
+  }
+
+  console.log('[CronJobFormModal] canSave = true')
   return true
 })
 
@@ -278,21 +328,49 @@ function handleDeliveryModeChange(mode: 'announce' | 'silent') {
 const deliveryTargetSelectValue = ref('')
 
 function handleDeliveryTargetChange(selectedValue: string) {
+  console.log('[CronJobFormModal] 投递目标变化:', selectedValue)
   if (!selectedValue) {
     formData.value.deliveryChannel = ''
     formData.value.deliveryTarget = ''
+    console.log('[CronJobFormModal] 投递目标已清空')
     return
   }
   const parsed = parseDeliveryTargetValue(selectedValue)
+  console.log('[CronJobFormModal] 解析结果:', parsed)
   formData.value.deliveryChannel = parsed.channel
   formData.value.deliveryTarget = parsed.peerId
+  console.log('[CronJobFormModal] formData 更新后:', {
+    channel: formData.value.deliveryChannel,
+    target: formData.value.deliveryTarget
+  })
 }
 
 // 编辑模式下回填投递目标选择值
 function restoreDeliveryTargetSelectValue() {
-  if (formData.value.deliveryChannel && formData.value.deliveryTarget) {
-    deliveryTargetSelectValue.value = `${formData.value.deliveryChannel}:${formData.value.deliveryTarget}`
+  // 如果没有投递目标，清空选择值
+  if (!formData.value.deliveryChannel || !formData.value.deliveryTarget) {
+    deliveryTargetSelectValue.value = ''
+    return
+  }
+
+  // 如果选项列表还没有加载，暂时不设置（等待选项加载完成后再次调用）
+  if (!deliveryTargetOptions.value || deliveryTargetOptions.value.length === 0) {
+    console.log('[CronJobFormModal] 选项列表未加载，延迟回填投递目标')
+    deliveryTargetSelectValue.value = ''
+    return
+  }
+
+  // 在选项列表中查找匹配的选项
+  const targetValue = `${formData.value.deliveryChannel}:${formData.value.deliveryTarget}`
+  const matchedOption = deliveryTargetOptions.value.find(opt => opt.value === targetValue)
+
+  if (matchedOption) {
+    // 找到匹配的选项，使用选项的 value（确保格式一致）
+    deliveryTargetSelectValue.value = matchedOption.value
+    console.log('[CronJobFormModal] 投递目标回填成功:', matchedOption.value)
   } else {
+    // 原始选择的投递目标不在当前选项列表中（可能被删除了）
+    console.warn('[CronJobFormModal] 原始投递目标不在选项列表中:', targetValue)
     deliveryTargetSelectValue.value = ''
   }
 }
@@ -304,8 +382,11 @@ function restoreDeliveryTargetSelectValue() {
 watch(
   () => props.show,
   (show) => {
+    console.log('[CronJobFormModal] Modal show 状态变化:', show, 'mode:', props.mode)
+
     if (!show) {
       // Modal 关闭时重置表单
+      console.log('[CronJobFormModal] Modal 关闭，重置表单')
       formData.value = {
         name: '',
         description: '',
@@ -321,12 +402,14 @@ watch(
       }
       formErrors.value = {}
       touched.value = {}
+      deliveryTargetSelectValue.value = ''
       return
     }
 
     // 编辑模式:填充现有数据
     if (props.mode === 'edit' && props.job) {
       const job = props.job
+      console.log('[CronJobFormModal] 编辑模式，填充数据:', job)
       formData.value = {
         name: job.name,
         description: job.description || '',
@@ -340,10 +423,15 @@ watch(
         sessionTarget: job.sessionTarget as any,
         wakeMode: job.wakeMode as any
       }
+      console.log('[CronJobFormModal] formData 已填充:', {
+        deliveryChannel: formData.value.deliveryChannel,
+        deliveryTarget: formData.value.deliveryTarget
+      })
       // 回填投递目标选择值
       restoreDeliveryTargetSelectValue()
     } else {
       // 新建模式：重置选择值
+      console.log('[CronJobFormModal] 新建模式，重置选择值')
       deliveryTargetSelectValue.value = ''
     }
   },
@@ -377,6 +465,19 @@ watch(
 
       <!-- 表单内容 -->
       <div class="modal-body">
+        <!-- 验证错误提示 -->
+        <Transition name="error-alert">
+          <div v-if="validationErrors.length > 0" class="validation-error-alert">
+            <div class="error-alert-icon">⚠️</div>
+            <div class="error-alert-content">
+              <div class="error-alert-title">无法保存</div>
+              <ul class="error-alert-list">
+                <li v-for="(error, index) in validationErrors" :key="index">{{ error }}</li>
+              </ul>
+            </div>
+          </div>
+        </Transition>
+
         <!-- 基本信息 -->
         <section class="form-section">
           <h4 class="section-title">基本信息</h4>
@@ -619,6 +720,65 @@ watch(
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+}
+
+/* 验证错误提示 */
+.validation-error-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  background: color-mix(in srgb, var(--oc-danger) 8%, transparent);
+  border: 1px solid var(--oc-danger);
+  border-left: 4px solid var(--oc-danger);
+  border-radius: var(--radius-md);
+}
+
+.error-alert-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.error-alert-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.error-alert-title {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--oc-danger);
+  margin-bottom: 6px;
+}
+
+.error-alert-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.error-alert-list li {
+  font-size: var(--text-sm);
+  color: var(--oc-text-secondary);
+  line-height: 1.5;
+  margin-bottom: 2px;
+}
+
+.error-alert-list li:last-child {
+  margin-bottom: 0;
+}
+
+/* 错误提示动画 */
+.error-alert-enter-active,
+.error-alert-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.error-alert-enter-from,
+.error-alert-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 .modal-footer {
