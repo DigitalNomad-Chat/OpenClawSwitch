@@ -225,7 +225,7 @@ const loadDefaultConfig = async () => {
 const openAddModal = () => {
   formData.value = {
     agentId: agentOptions.value[0]?.id || '',
-    channel: channelOptions[0]?.id || '',
+    channel: '',
     peerKind: 'dm',
     peerId: ''
   }
@@ -426,7 +426,7 @@ const getAgentIcon = (agentId: string): string => {
 const quickBindAgent = (agent: UnboundAgent) => {
   formData.value = {
     agentId: agent.id,
-    channel: channelOptions[0]?.id || 'feishu',
+    channel: '',
     peerKind: 'group',
     peerId: ''
   }
