@@ -26,7 +26,9 @@ import type {
   AgentOption,
   ChannelOption,
   BindingRequest,
-  ConfigFileInfo
+  ConfigFileInfo,
+  RoutingMode,
+  AccountOption
 } from '../../types/config'
 
 // ============================================================================
@@ -77,6 +79,13 @@ const channelOptions: ChannelOption[] = [
   { id: 'dingtalk', name: '钉钉', icon: '⚡' }
 ]
 
+// 路由模式选项
+const routingModeOptions: { value: RoutingMode; label: string; description: string }[] = [
+  { value: 'peer', label: 'Peer', description: '通过 Peer ID 路由' },
+  { value: 'accountId', label: 'Account ID', description: '通过账号 ID 路由' },
+  { value: 'both', label: 'Both', description: '同时支持两种方式' }
+]
+
 // UI 状态
 const loading = ref(false)
 const showAddModal = ref(false)
@@ -88,6 +97,8 @@ const showUnboundWarning = ref(true) // 显示未绑定 Agent 提示
 const formData = ref<BindingRequest>({
   agentId: '',
   channel: '',
+  routingMode: 'peer',
+  accountId: '',
   peerKind: 'dm',
   peerId: ''
 })
@@ -96,6 +107,12 @@ const formData = ref<BindingRequest>({
 const showAgentDropdown = ref(false)
 const showChannelDropdown = ref(false)
 const showPeerKindDropdown = ref(false)
+const showRoutingModeDropdown = ref(false)
+const showAccountDropdown = ref(false)
+
+// 账号选项
+const accountOptions = ref<AccountOption[]>([])
+const accountLoading = ref(false)
 
 // ============================================================================
 // 计算属性
@@ -163,6 +180,78 @@ const selectedPeerKindLabel = computed(() => {
   return option?.label || '选择类型'
 })
 
+// 选中的路由模式标签
+const selectedRoutingModeLabel = computed(() => {
+  const option = routingModeOptions.find(o => o.value === formData.value.routingMode)
+  return option?.label || 'peer'
+})
+
+// 选中的路由模式描述
+const selectedRoutingModeDescription = computed(() => {
+  const option = routingModeOptions.find(o => o.value === formData.value.routingMode)
+  return option?.description || ''
+})
+
+// 选中的账号名称
+const selectedAccountName = computed(() => {
+  const account = accountOptions.value.find(a => a.id === formData.value.accountId)
+  return account?.name || formData.value.accountId || '选择账号'
+})
+
+// 是否显示 Peer 相关字段
+const showPeerFields = computed(() => {
+  const mode = formData.value.routingMode
+  return mode === 'peer' || mode === 'both'
+})
+
+// 是否显示 Account ID 字段
+const showAccountFields = computed(() => {
+  const mode = formData.value.routingMode
+  return mode === 'accountId' || mode === 'both'
+})
+
+// 加载账号选项
+const loadAccountOptions = async () => {
+  const channelId = formData.value.channel
+  if (!channelId) {
+    accountOptions.value = []
+    return
+  }
+
+  accountLoading.value = true
+  try {
+    const accounts = await invoke<{ id: string; name: string; description?: string }[]>('get_channel_accounts', { channelId })
+    accountOptions.value = accounts.map(acc => ({
+      id: acc.id,
+      name: acc.name,
+      description: acc.description
+    }))
+    console.log('[绑定管理] 加载账号选项:', accounts)
+  } catch (error) {
+    console.error('[绑定管理] 加载账号失败:', error)
+    accountOptions.value = []
+    props.showToast('error', `获取渠道账号失败: ${error}`)
+  } finally {
+    accountLoading.value = false
+  }
+}
+
+// 渠道变更时加载账号选项
+const onChannelChange = () => {
+  formData.value.accountId = ''
+  accountOptions.value = []
+  if (formData.value.channel) {
+    loadAccountOptions()
+  }
+}
+
+// 路由模式变更时处理
+const onRoutingModeChange = () => {
+  if (formData.value.routingMode === 'accountId' && formData.value.channel) {
+    loadAccountOptions()
+  }
+}
+
 // ============================================================================
 // 数据加载
 // ============================================================================
@@ -226,9 +315,12 @@ const openAddModal = () => {
   formData.value = {
     agentId: agentOptions.value[0]?.id || '',
     channel: '',
+    routingMode: 'peer',
+    accountId: '',
     peerKind: 'dm',
     peerId: ''
   }
+  accountOptions.value = []
   showAddModal.value = true
 }
 
@@ -237,9 +329,12 @@ const closeAddModal = () => {
   formData.value = {
     agentId: '',
     channel: '',
+    routingMode: 'peer',
+    accountId: '',
     peerKind: 'dm',
     peerId: ''
   }
+  accountOptions.value = []
 }
 
 const openEditModal = (binding: BindingInfo) => {
@@ -247,8 +342,15 @@ const openEditModal = (binding: BindingInfo) => {
   formData.value = {
     agentId: binding.agentId,
     channel: binding.channel,
+    routingMode: (binding as any).routingMode || 'peer',
+    accountId: (binding as any).accountId || '',
     peerKind: binding.peerKind,
     peerId: binding.peerId
+  }
+  // 如果有账号模式，加载账号选项
+  if ((binding as any).routingMode !== 'peer' && binding.channel) {
+    formData.value.channel = binding.channel
+    loadAccountOptions()
   }
   showEditModal.value = true
 }
@@ -259,9 +361,12 @@ const closeEditModal = () => {
   formData.value = {
     agentId: '',
     channel: '',
+    routingMode: 'peer',
+    accountId: '',
     peerKind: 'dm',
     peerId: ''
   }
+  accountOptions.value = []
 }
 
 const addBinding = async () => {
@@ -274,8 +379,15 @@ const addBinding = async () => {
     props.showToast('error', '请选择渠道')
     return
   }
-  if (!formData.value.peerId) {
+
+  // 根据路由模式验证
+  const mode = formData.value.routingMode
+  if ((mode === 'peer' || mode === 'both') && !formData.value.peerId) {
     props.showToast('error', '请输入 Peer ID')
+    return
+  }
+  if ((mode === 'accountId' || mode === 'both') && !formData.value.accountId) {
+    props.showToast('error', '请选择账号')
     return
   }
 
@@ -311,8 +423,15 @@ const updateBinding = async () => {
     props.showToast('error', '请选择渠道')
     return
   }
-  if (!formData.value.peerId) {
+
+  // 根据路由模式验证
+  const mode = formData.value.routingMode
+  if ((mode === 'peer' || mode === 'both') && !formData.value.peerId) {
     props.showToast('error', '请输入 Peer ID')
+    return
+  }
+  if ((mode === 'accountId' || mode === 'both') && !formData.value.accountId) {
+    props.showToast('error', '请选择账号')
     return
   }
 
@@ -695,7 +814,7 @@ onMounted(async () => {
               </Button>
               <div v-if="showChannelDropdown" class="oc-dropdown-menu absolute z-10 mt-1 w-full max-h-48 overflow-auto">
                 <div v-for="channel in channelOptions" :key="channel.id"
-                     @click="formData.channel = channel.id; showChannelDropdown = false"
+                     @click="formData.channel = channel.id; showChannelDropdown = false; onChannelChange()"
                      class="oc-dropdown-item cursor-pointer flex items-center gap-2" style="font-size: var(--text-sm);">
                   <span style="font-size: var(--text-lg);">{{ channel.icon }}</span>
                   <span>{{ channel.name }}</span>
@@ -704,8 +823,61 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- Peer Kind 选择 -->
+          <!-- 路由模式选择 -->
           <div>
+            <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">路由模式 *</Label>
+            <div class="relative">
+              <Button variant="outline" size="sm" @click="showRoutingModeDropdown = !showRoutingModeDropdown"
+                      class="w-full h-auto min-h-9 py-2 text-left justify-between">
+                <div class="flex items-center gap-2">
+                  <Zap class="w-4 h-4" style="color: var(--oc-text-muted);" />
+                  <div>
+                    <span style="font-size: var(--text-sm);">{{ selectedRoutingModeLabel }}</span>
+                    <span style="font-size: var(--text-xs); color: var(--oc-text-muted); margin-left: 8px;">{{ selectedRoutingModeDescription }}</span>
+                  </div>
+                </div>
+                <ChevronDown class="w-4 h-4 flex-shrink-0" :class="{ 'rotate-180': showRoutingModeDropdown }" />
+              </Button>
+              <div v-if="showRoutingModeDropdown" class="oc-dropdown-menu absolute z-10 mt-1 w-full">
+                <div v-for="option in routingModeOptions" :key="option.value"
+                     @click="formData.routingMode = option.value; showRoutingModeDropdown = false; onRoutingModeChange()"
+                     class="oc-dropdown-item cursor-pointer" style="font-size: var(--text-sm);">
+                  <div style="font-weight: var(--font-weight-medium); color: var(--oc-text-primary);">{{ option.label }}</div>
+                  <div style="font-size: var(--text-xs); color: var(--oc-text-muted);">{{ option.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 账号选择（accountId/both 模式显示） -->
+          <div v-if="showAccountFields">
+            <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">账号 *</Label>
+            <div class="relative">
+              <Button variant="outline" size="sm" @click="showAccountDropdown = !showAccountDropdown"
+                      :disabled="!formData.channel || accountLoading"
+                      class="w-full h-auto min-h-9 py-2 text-left justify-between">
+                <span v-if="accountLoading" class="flex items-center gap-2">
+                  <span class="animate-spin w-4 h-4 border-2 border-[var(--oc-accent)] border-t-transparent rounded-full"></span>
+                  <span style="font-size: var(--text-sm);">加载中...</span>
+                </span>
+                <span v-else-if="!formData.channel" style="font-size: var(--text-sm); color: var(--oc-text-quiet);">请先选择渠道</span>
+                <span v-else-if="accountOptions.length === 0" style="font-size: var(--text-sm); color: var(--oc-text-quiet);">该渠道无可用账号</span>
+                <span v-else style="font-size: var(--text-sm);">{{ selectedAccountName }}</span>
+                <ChevronDown class="w-4 h-4 flex-shrink-0" :class="{ 'rotate-180': showAccountDropdown }" />
+              </Button>
+              <div v-if="showAccountDropdown && accountOptions.length > 0" class="oc-dropdown-menu absolute z-10 mt-1 w-full max-h-48 overflow-auto">
+                <div v-for="account in accountOptions" :key="account.id"
+                     @click="formData.accountId = account.id; showAccountDropdown = false"
+                     class="oc-dropdown-item cursor-pointer" style="font-size: var(--text-sm);">
+                  <div style="font-weight: var(--font-weight-medium); color: var(--oc-text-primary);">{{ account.name }}</div>
+                  <div v-if="account.description" style="font-size: var(--text-xs); color: var(--oc-text-muted);">{{ account.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Peer Kind 选择（peer/both 模式显示） -->
+          <div v-if="showPeerFields">
             <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">类型 *</Label>
             <div class="relative">
               <Button variant="outline" size="sm" @click="showPeerKindDropdown = !showPeerKindDropdown"
@@ -726,8 +898,8 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- Peer ID 输入 -->
-          <div>
+          <!-- Peer ID 输入（peer/both 模式显示） -->
+          <div v-if="showPeerFields">
             <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">Peer ID *</Label>
             <Input v-model="formData.peerId" placeholder="例如: ou_5056a9..." />
             <p class="mt-1" style="font-size: var(--text-xs); color: var(--oc-text-muted);">
@@ -785,7 +957,7 @@ onMounted(async () => {
               </Button>
               <div v-if="showChannelDropdown" class="oc-dropdown-menu absolute z-10 mt-1 w-full max-h-48 overflow-auto">
                 <div v-for="channel in channelOptions" :key="channel.id"
-                     @click="formData.channel = channel.id; showChannelDropdown = false"
+                     @click="formData.channel = channel.id; showChannelDropdown = false; onChannelChange()"
                      class="oc-dropdown-item cursor-pointer flex items-center gap-2" style="font-size: var(--text-sm);">
                   <span style="font-size: var(--text-lg);">{{ channel.icon }}</span>
                   <span>{{ channel.name }}</span>
@@ -794,8 +966,61 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- Peer Kind 选择 -->
+          <!-- 路由模式选择 -->
           <div>
+            <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">路由模式 *</Label>
+            <div class="relative">
+              <Button variant="outline" size="sm" @click="showRoutingModeDropdown = !showRoutingModeDropdown"
+                      class="w-full h-auto min-h-9 py-2 text-left justify-between">
+                <div class="flex items-center gap-2">
+                  <Zap class="w-4 h-4" style="color: var(--oc-text-muted);" />
+                  <div>
+                    <span style="font-size: var(--text-sm);">{{ selectedRoutingModeLabel }}</span>
+                    <span style="font-size: var(--text-xs); color: var(--oc-text-muted); margin-left: 8px;">{{ selectedRoutingModeDescription }}</span>
+                  </div>
+                </div>
+                <ChevronDown class="w-4 h-4 flex-shrink-0" :class="{ 'rotate-180': showRoutingModeDropdown }" />
+              </Button>
+              <div v-if="showRoutingModeDropdown" class="oc-dropdown-menu absolute z-10 mt-1 w-full">
+                <div v-for="option in routingModeOptions" :key="option.value"
+                     @click="formData.routingMode = option.value; showRoutingModeDropdown = false; onRoutingModeChange()"
+                     class="oc-dropdown-item cursor-pointer" style="font-size: var(--text-sm);">
+                  <div style="font-weight: var(--font-weight-medium); color: var(--oc-text-primary);">{{ option.label }}</div>
+                  <div style="font-size: var(--text-xs); color: var(--oc-text-muted);">{{ option.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 账号选择（accountId/both 模式显示） -->
+          <div v-if="showAccountFields">
+            <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">账号 *</Label>
+            <div class="relative">
+              <Button variant="outline" size="sm" @click="showAccountDropdown = !showAccountDropdown"
+                      :disabled="!formData.channel || accountLoading"
+                      class="w-full h-auto min-h-9 py-2 text-left justify-between">
+                <span v-if="accountLoading" class="flex items-center gap-2">
+                  <span class="animate-spin w-4 h-4 border-2 border-[var(--oc-accent)] border-t-transparent rounded-full"></span>
+                  <span style="font-size: var(--text-sm);">加载中...</span>
+                </span>
+                <span v-else-if="!formData.channel" style="font-size: var(--text-sm); color: var(--oc-text-quiet);">请先选择渠道</span>
+                <span v-else-if="accountOptions.length === 0" style="font-size: var(--text-sm); color: var(--oc-text-quiet);">该渠道无可用账号</span>
+                <span v-else style="font-size: var(--text-sm);">{{ selectedAccountName }}</span>
+                <ChevronDown class="w-4 h-4 flex-shrink-0" :class="{ 'rotate-180': showAccountDropdown }" />
+              </Button>
+              <div v-if="showAccountDropdown && accountOptions.length > 0" class="oc-dropdown-menu absolute z-10 mt-1 w-full max-h-48 overflow-auto">
+                <div v-for="account in accountOptions" :key="account.id"
+                     @click="formData.accountId = account.id; showAccountDropdown = false"
+                     class="oc-dropdown-item cursor-pointer" style="font-size: var(--text-sm);">
+                  <div style="font-weight: var(--font-weight-medium); color: var(--oc-text-primary);">{{ account.name }}</div>
+                  <div v-if="account.description" style="font-size: var(--text-xs); color: var(--oc-text-muted);">{{ account.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Peer Kind 选择（peer/both 模式显示） -->
+          <div v-if="showPeerFields">
             <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">类型 *</Label>
             <div class="relative">
               <Button variant="outline" size="sm" @click="showPeerKindDropdown = !showPeerKindDropdown"
@@ -816,8 +1041,8 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- Peer ID 输入 -->
-          <div>
+          <!-- Peer ID 输入（peer/both 模式显示） -->
+          <div v-if="showPeerFields">
             <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">Peer ID *</Label>
             <Input v-model="formData.peerId" placeholder="例如: ou_5056a9..." />
           </div>

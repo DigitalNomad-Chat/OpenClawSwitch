@@ -241,6 +241,9 @@ export type PageId = 'home' | 'install' | 'config' | 'bindings' | 'ssh' | 'tools
 /** Peer 类型 */
 export type PeerKind = 'dm' | 'group'
 
+/** 路由模式 */
+export type RoutingMode = 'peer' | 'accountId' | 'both'
+
 /** 渠道类型 */
 export type ChannelId = 'feishu' | 'telegram' | 'discord' | 'slack' | 'whatsapp' | 'imessage' | 'wecom' | 'qq' | 'dingtalk'
 
@@ -249,6 +252,8 @@ export interface BindingInfo {
   index: number
   agentId: string
   channel: ChannelId | string
+  routingMode?: RoutingMode | string  // 路由模式
+  accountId?: string                  // 账号 ID（accountId 模式）
   peerKind: PeerKind | string
   peerId: string
 }
@@ -257,8 +262,17 @@ export interface BindingInfo {
 export interface BindingRequest {
   agentId: string
   channel: string
+  routingMode?: RoutingMode | string  // 路由模式
+  accountId?: string                  // 账号 ID（accountId 模式）
   peerKind: PeerKind | string
   peerId: string
+}
+
+/** 账号选项 */
+export interface AccountOption {
+  id: string
+  name: string
+  description?: string
 }
 
 /** Agent 选项 */

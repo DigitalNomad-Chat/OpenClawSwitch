@@ -11,8 +11,18 @@ pub struct BindingInfo {
     pub index: usize,
     pub agent_id: String,
     pub channel: String,
+    pub routing_mode: Option<String>,  // 路由模式: peer, accountId, both
+    pub account_id: Option<String>,    // 账号 ID（accountId 模式）
     pub peer_kind: String,
     pub peer_id: String,
+}
+
+/// 账号信息结构
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AccountOption {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
 }
 
 /// 新增/更新绑定的请求结构
@@ -21,6 +31,8 @@ pub struct BindingInfo {
 pub struct BindingRequest {
     pub agent_id: String,
     pub channel: String,
+    pub routing_mode: Option<String>,  // 路由模式: peer, accountId, both
+    pub account_id: Option<String>,    // 账号 ID（accountId 模式）
     pub peer_kind: String,
     pub peer_id: String,
 }
@@ -38,6 +50,17 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
+
+                // 解析路由模式字段
+                let routing_mode = obj
+                    .get("routingMode")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+
+                let account_id = obj
+                    .get("accountId")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
 
                 let (channel, peer_kind, peer_id) = if let Some(match_obj) = obj.get("match").and_then(|m| m.as_object()) {
                     let channel = match_obj
@@ -73,6 +96,8 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
                     index,
                     agent_id,
                     channel,
+                    routing_mode,
+                    account_id,
                     peer_kind,
                     peer_id,
                 });
@@ -98,12 +123,18 @@ pub fn add_binding(mut config: Value, request: BindingRequest) -> Result<Value, 
     if request.channel.is_empty() {
         return Err("渠道不能为空".to_string());
     }
-    if request.peer_id.is_empty() {
+
+    // 根据路由模式验证
+    let mode = request.routing_mode.as_deref().unwrap_or("peer");
+    if (mode == "peer" || mode == "both") && request.peer_id.is_empty() {
         return Err("Peer ID 不能为空".to_string());
+    }
+    if (mode == "accountId" || mode == "both") && request.account_id.as_ref().map_or(true, |s| s.is_empty()) {
+        return Err("账号 ID 不能为空".to_string());
     }
 
     // 创建新的绑定对象
-    let new_binding = json!({
+    let mut new_binding = json!({
         "agentId": request.agent_id,
         "match": {
             "channel": request.channel,
@@ -113,6 +144,18 @@ pub fn add_binding(mut config: Value, request: BindingRequest) -> Result<Value, 
             }
         }
     });
+
+    // 添加可选字段
+    if let Some(routing_mode) = &request.routing_mode {
+        if !routing_mode.is_empty() {
+            new_binding["routingMode"] = json!(routing_mode);
+        }
+    }
+    if let Some(account_id) = &request.account_id {
+        if !account_id.is_empty() {
+            new_binding["accountId"] = json!(account_id);
+        }
+    }
 
     // 添加到数组
     if let Some(bindings) = config.get_mut("bindings").and_then(|b| b.as_array_mut()) {
@@ -147,8 +190,14 @@ pub fn update_binding(mut config: Value, index: usize, request: BindingRequest) 
     if request.channel.is_empty() {
         return Err("渠道不能为空".to_string());
     }
-    if request.peer_id.is_empty() {
+
+    // 根据路由模式验证
+    let mode = request.routing_mode.as_deref().unwrap_or("peer");
+    if (mode == "peer" || mode == "both") && request.peer_id.is_empty() {
         return Err("Peer ID 不能为空".to_string());
+    }
+    if (mode == "accountId" || mode == "both") && request.account_id.as_ref().map_or(true, |s| s.is_empty()) {
+        return Err("账号 ID 不能为空".to_string());
     }
 
     if let Some(bindings) = config.get_mut("bindings").and_then(|b| b.as_array_mut()) {
@@ -156,8 +205,8 @@ pub fn update_binding(mut config: Value, index: usize, request: BindingRequest) 
             return Err(format!("绑定索引 {} 超出范围", index));
         }
 
-        // 更新绑定对象
-        let updated_binding = json!({
+        // 创建更新后的绑定对象
+        let mut updated_binding = json!({
             "agentId": request.agent_id,
             "match": {
                 "channel": request.channel,
@@ -167,6 +216,18 @@ pub fn update_binding(mut config: Value, index: usize, request: BindingRequest) 
                 }
             }
         });
+
+        // 添加可选字段
+        if let Some(routing_mode) = &request.routing_mode {
+            if !routing_mode.is_empty() {
+                updated_binding["routingMode"] = json!(routing_mode);
+            }
+        }
+        if let Some(account_id) = &request.account_id {
+            if !account_id.is_empty() {
+                updated_binding["accountId"] = json!(account_id);
+            }
+        }
 
         bindings[index] = updated_binding;
     } else {
@@ -206,6 +267,84 @@ pub fn get_agent_options(config: Value) -> Result<Vec<(String, String)>, String>
     agents.retain(|(id, _)| seen.insert(id.clone()));
 
     Ok(agents)
+}
+
+/// 获取指定渠道的账号列表
+#[tauri::command]
+pub fn get_channel_accounts(channel_id: String) -> Result<Vec<AccountOption>, String> {
+    // 根据渠道返回对应的账号选项
+    // TODO: 后续可以从配置文件或运行时获取真实的账号列表
+    match channel_id.as_str() {
+        "feishu" => Ok(vec![
+            AccountOption {
+                id: "feishu_main".to_string(),
+                name: "飞书主账号".to_string(),
+                description: Some("默认飞书应用".to_string()),
+            },
+            AccountOption {
+                id: "feishu_work".to_string(),
+                name: "飞书工作台".to_string(),
+                description: Some("企业工作台账号".to_string()),
+            },
+        ]),
+        "telegram" => Ok(vec![
+            AccountOption {
+                id: "tg_primary".to_string(),
+                name: "Telegram 主账号".to_string(),
+                description: Some("主要 Telegram Bot".to_string()),
+            },
+        ]),
+        "discord" => Ok(vec![
+            AccountOption {
+                id: "discord_main".to_string(),
+                name: "Discord 主服务器".to_string(),
+                description: Some("主 Discord 服务器".to_string()),
+            },
+        ]),
+        "slack" => Ok(vec![
+            AccountOption {
+                id: "slack_workspace".to_string(),
+                name: "Slack 工作区".to_string(),
+                description: Some("工作区账号".to_string()),
+            },
+        ]),
+        "wecom" => Ok(vec![
+            AccountOption {
+                id: "wecom_corp".to_string(),
+                name: "企业微信".to_string(),
+                description: Some("企业微信应用".to_string()),
+            },
+        ]),
+        "dingtalk" => Ok(vec![
+            AccountOption {
+                id: "dingtalk_main".to_string(),
+                name: "钉钉主应用".to_string(),
+                description: Some("钉钉主应用".to_string()),
+            },
+        ]),
+        "whatsapp" => Ok(vec![
+            AccountOption {
+                id: "whatsapp_business".to_string(),
+                name: "WhatsApp Business".to_string(),
+                description: Some("商业版 WhatsApp".to_string()),
+            },
+        ]),
+        "imessage" => Ok(vec![
+            AccountOption {
+                id: "imessage_icloud".to_string(),
+                name: "iMessage (iCloud)".to_string(),
+                description: Some("iCloud 关联的 iMessage".to_string()),
+            },
+        ]),
+        "qq" => Ok(vec![
+            AccountOption {
+                id: "qq_work".to_string(),
+                name: "QQ 工作群".to_string(),
+                description: Some("工作用 QQ 群".to_string()),
+            },
+        ]),
+        _ => Ok(vec![]), // 未知渠道返回空列表
+    }
 }
 
 #[cfg(test)]
@@ -251,6 +390,8 @@ mod tests {
         let request = BindingRequest {
             agent_id: "main".to_string(),
             channel: "feishu".to_string(),
+            routing_mode: None,
+            account_id: None,
             peer_kind: "dm".to_string(),
             peer_id: "ou_123".to_string(),
         };
@@ -295,6 +436,8 @@ mod tests {
         let request = BindingRequest {
             agent_id: "ops-manager".to_string(),
             channel: "feishu".to_string(),
+            routing_mode: None,
+            account_id: None,
             peer_kind: "group".to_string(),
             peer_id: "oc_456".to_string(),
         };
