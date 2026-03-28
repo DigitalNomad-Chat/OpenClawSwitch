@@ -29,6 +29,7 @@ import Button from './components/ui/Button.vue'
 import Card from './components/ui/Card.vue'
 import Input from './components/ui/Input.vue'
 import Toast from './components/ui/Toast.vue'
+import LogModal from './components/dashboard/LogModal.vue'
 
 // 新的仪表盘组件
 import DashboardGrid from './components/dashboard/DashboardGrid.vue'
@@ -89,6 +90,7 @@ const targetMode = ref<EnvMode | null>(null)
 const showEnvDropdown = ref(false)
 const showSshModal = ref(false)
 const showFingerprintDialog = ref(false)
+const showLogModal = ref(false)
 const sshConnected = ref(false)
 const sshFingerprint = ref<FingerprintInfo | null>(null)
 const sshFingerprintCallback = ref<(() => void) | null>(null)
@@ -879,8 +881,8 @@ const handleCardAction = (cardId: NavPage, action: string) => {
 const handleStatusCardAction = (action: string) => {
   console.log('[handleStatusCardAction] 按钮点击:', { action, gatewayReachable: gatewayReachable.value })
   switch (action) {
-    case 'details':
-      navigateTo('overview')
+    case 'logs':
+      showLogModal.value = true
       break
     case 'restart':
       openToolPanel('restart')
@@ -1875,6 +1877,15 @@ onUnmounted(() => {
       :fingerprint="sshFingerprint"
       @confirm="confirmFingerprint"
       @reject="rejectFingerprint"
+    />
+
+    <!-- 实时日志模态窗口 -->
+    <LogModal
+      :open="showLogModal"
+      :env-status="envStatus"
+      :env-mode="currentEnv.mode"
+      :gateway-reachable="gatewayReachable"
+      @close="showLogModal = false"
     />
 
     <div

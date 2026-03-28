@@ -45,9 +45,9 @@ const versionInfo = computed(() => {
 // 快捷操作 - 使用计算属性以确保响应式更新
 const quickActions = computed(() => [
   {
-    label: '详情',
+    label: '实时日志',
     icon: ChevronRight,
-    action: 'details'
+    action: 'logs'
   },
   {
     label: '重启',
