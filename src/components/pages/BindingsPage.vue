@@ -112,7 +112,6 @@ const showAccountDropdown = ref(false)
 
 // 账号选项
 const accountOptions = ref<AccountOption[]>([])
-const accountLoading = ref(false)
 
 // ============================================================================
 // 计算属性
@@ -210,30 +209,51 @@ const showAccountFields = computed(() => {
   return mode === 'accountId' || mode === 'both'
 })
 
-// 加载账号选项
-const loadAccountOptions = async () => {
+// 加载账号选项（直接从配置中读取，零延迟）
+const loadAccountOptions = () => {
   const channelId = formData.value.channel
   if (!channelId) {
     accountOptions.value = []
     return
   }
 
-  accountLoading.value = true
-  try {
-    const accounts = await invoke<{ id: string; name: string; description?: string }[]>('get_channel_accounts', { channelId })
-    accountOptions.value = accounts.map(acc => ({
-      id: acc.id,
-      name: acc.name,
-      description: acc.description
-    }))
-    console.log('[绑定管理] 加载账号选项:', accounts)
-  } catch (error) {
-    console.error('[绑定管理] 加载账号失败:', error)
+  const config = currentConfig.value as any
+  if (!config) {
     accountOptions.value = []
-    props.showToast('error', `获取渠道账号失败: ${error}`)
-  } finally {
-    accountLoading.value = false
+    return
   }
+
+  const channels = config.channels
+  if (!channels) {
+    accountOptions.value = []
+    return
+  }
+
+  // 渠道配置键名映射
+  const channelKey = channelId === 'dingtalk' ? 'dingtalk-connector' : channelId
+  const channelNode = channels[channelKey] || {}
+  const accounts = channelNode.accounts
+
+  const result: AccountOption[] = []
+
+  if (accounts && typeof accounts === 'object') {
+    for (const [id, node] of Object.entries(accounts)) {
+      if (typeof node === 'object') {
+        result.push({
+          id: `${channelId}:${id}`,
+          name: id === 'default' ? '默认账号' : id,
+        })
+      }
+    }
+  }
+
+  // 顶层配置也视为 default 账号（非 accounts 里的）
+  if (channelNode.appId || channelNode.botToken || channelNode.token) {
+    result.unshift({ id: `${channelId}:default`, name: '默认账号' })
+  }
+
+  accountOptions.value = result
+  console.log('[绑定管理] 加载账号选项:', result)
 }
 
 // 渠道变更时加载账号选项
@@ -854,9 +874,9 @@ onMounted(async () => {
             <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">账号 *</Label>
             <div class="relative">
               <Button variant="outline" size="sm" @click="showAccountDropdown = !showAccountDropdown"
-                      :disabled="!formData.channel || accountLoading"
+                      :disabled="!formData.channel"
                       class="w-full h-auto min-h-9 py-2 text-left justify-between">
-                <span v-if="accountLoading" class="flex items-center gap-2">
+                <span v-if="!accountLoading" class="flex items-center gap-2">
                   <span class="animate-spin w-4 h-4 border-2 border-[var(--oc-accent)] border-t-transparent rounded-full"></span>
                   <span style="font-size: var(--text-sm);">加载中...</span>
                 </span>
@@ -997,9 +1017,9 @@ onMounted(async () => {
             <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">账号 *</Label>
             <div class="relative">
               <Button variant="outline" size="sm" @click="showAccountDropdown = !showAccountDropdown"
-                      :disabled="!formData.channel || accountLoading"
+                      :disabled="!formData.channel"
                       class="w-full h-auto min-h-9 py-2 text-left justify-between">
-                <span v-if="accountLoading" class="flex items-center gap-2">
+                <span v-if="!accountLoading" class="flex items-center gap-2">
                   <span class="animate-spin w-4 h-4 border-2 border-[var(--oc-accent)] border-t-transparent rounded-full"></span>
                   <span style="font-size: var(--text-sm);">加载中...</span>
                 </span>
