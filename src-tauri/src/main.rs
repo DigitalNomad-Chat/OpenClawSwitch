@@ -893,6 +893,7 @@ fn main() {
             bindings::remove_binding,
             bindings::update_binding,
             bindings::get_agent_options,
+            bindings::get_channel_accounts,
             // OpenClaw 工具
             restart_gateway,
             health_check_gateway,
