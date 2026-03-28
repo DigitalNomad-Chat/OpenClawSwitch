@@ -189,30 +189,34 @@ pub struct SkillsBySource {
 
 /// 获取预设资源目录路径
 fn get_presets_resource_dir() -> Result<PathBuf, String> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("获取执行路径失败: {}", e))?;
+
     // 开发环境优先：检查项目目录
     #[cfg(debug_assertions)]
     {
         // 开发环境：src-tauri/resources/presets
-        if let Ok(mut exe_path) = std::env::current_exe() {
-            // 从 target/debug/clawlite 向上找到 src-tauri 目录
-            if let Some(src_tauri) = exe_path
-                .parent()  // target/debug
-                .and_then(|p| p.parent())  // target
-                .and_then(|p| p.parent())  // 项目根
-                .map(|p| p.join("src-tauri"))
-            {
-                let dev_presets = src_tauri.join("resources").join("presets");
-                if dev_presets.exists() {
-                    return Ok(dev_presets);
-                }
+        // 可执行文件在: src-tauri/target/debug/clawlite
+        // 需要向上找到: src-tauri/resources/presets
+        if let Some(src_tauri) = exe_path
+            .parent()  // target/debug
+            .and_then(|p| p.parent())  // target
+            .and_then(|p| p.parent())  // src-tauri
+        {
+            let dev_presets = src_tauri.join("resources").join("presets");
+            println!("🔍 [开发环境] exe_path: {:?}", exe_path);
+            println!("🔍 [开发环境] src_tauri: {:?}", src_tauri);
+            println!("🔍 [开发环境] 检查预设目录: {:?}", dev_presets);
+            if dev_presets.exists() {
+                println!("✅ [开发环境] 使用开发环境预设目录");
+                return Ok(dev_presets);
+            } else {
+                println!("⚠️  [开发环境] 开发目录不存在，尝试生产环境路径");
             }
         }
     }
 
     // 生产环境：使用 .app 结构
-    let exe_path = std::env::current_exe()
-        .map_err(|e| format!("获取执行路径失败: {}", e))?;
-
     let presets_dir = if cfg!(target_os = "macos") {
         // macOS .app 结构: Clawlite.app/Contents/MacOS/clawlite
         // 资源在: Clawlite.app/Contents/Resources/resources/presets
@@ -231,6 +235,8 @@ fn get_presets_resource_dir() -> Result<PathBuf, String> {
             .join("resources")
             .join("presets")
     };
+
+    println!("🔍 [生产环境] 预设目录路径: {:?}", presets_dir);
 
     if !presets_dir.exists() {
         return Err(format!("预设目录不存在: {}", presets_dir.display()));

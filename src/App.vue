@@ -22,6 +22,7 @@ import DiagnosticsPage from './components/pages/DiagnosticsPage.vue'
 import SkillPresetsPage from './components/pages/SkillPresetsPage.vue'
 import AgentWorkspacesPage from './components/pages/AgentWorkspacesPage.vue'
 import CronJobsPage from './components/pages/CronJobsPage.vue'
+import ChatArea from './components/ai-assistant/ChatArea.vue'
 import SshConnectModal from './components/SshConnectModal.vue'
 import SshFingerprintDialog from './components/SshFingerprintDialog.vue'
 import Button from './components/ui/Button.vue'
@@ -651,7 +652,8 @@ const syncConfigSignals = async () => {
         j.state?.lastRunStatus === 'error' || (j.state?.consecutiveErrors || 0) > 0
       ).length
     }
-  } catch {
+  } catch (error) {
+    console.error('[Cron Jobs] 加载失败:', error)
     totalJobs.value = 0
     enabledJobs.value = 0
     jobsWithErrors.value = 0
@@ -669,7 +671,8 @@ const syncConfigSignals = async () => {
       // 统计已安装并启用的预设
       activePresetsCount.value = skills.filter((s: any) => s.installed && s.enabled).length
     }
-  } catch {
+  } catch (error) {
+    console.error('[Skill Presets] 加载失败:', error)
     presetsCount.value = 0
     activePresetsCount.value = 0
   }
@@ -686,7 +689,8 @@ const syncConfigSignals = async () => {
       // 统计活跃的工作空间（默认都视为可用，因为没有启用/禁用状态）
       activeWorkspacesCount.value = workspaces.length
     }
-  } catch {
+  } catch (error) {
+    console.error('[Agent Workspaces] 加载失败:', error)
     workspacesCount.value = 0
     activeWorkspacesCount.value = 0
   }
@@ -1666,6 +1670,10 @@ onUnmounted(() => {
                 <h3 class="text-lg font-semibold" style="color: var(--oc-text-primary);">绑定管理不可用</h3>
                 <p class="mt-1 text-sm" style="color: var(--oc-text-muted);">请先在"安装与接入"中完成安装。</p>
               </div>
+            </div>
+
+            <div v-else-if="activeNav === 'ai-assistant'" class="oc-page-root ai-assistant-page">
+              <ChatArea />
             </div>
 
             <DiagnosticsPage

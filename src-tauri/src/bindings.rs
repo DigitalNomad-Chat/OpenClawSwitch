@@ -307,3 +307,101 @@ mod tests {
         assert_eq!(bindings[0]["match"]["peer"]["id"], "oc_456");
     }
 }
+
+// ============================================================================
+// Claw Agent 管理命令
+// ============================================================================
+
+use crate::claw_agent;
+use std::sync::Mutex;
+
+/// 全局 Claw Agent 管理器
+static CLAW_AGENT_MANAGER: Mutex<Option<claw_agent::ClawAgentManager>> = Mutex::new(None);
+
+/// 初始化 Claw Agent 管理器
+fn init_manager() -> Result<(), String> {
+    let mut guard = CLAW_AGENT_MANAGER.lock()
+        .map_err(|e| format!("获取锁失败: {}", e))?;
+
+    if guard.is_some() {
+        return Ok(());
+    }
+
+    *guard = Some(claw_agent::ClawAgentManager::new());
+    Ok(())
+}
+
+/// 启动 Claw Agent（可选 LLM 配置参数）
+#[tauri::command]
+pub fn claw_start_agent(
+    api: Option<String>,
+    model: Option<String>,
+    api_key: Option<String>,
+    base_url: Option<String>,
+    workspace: Option<String>,
+) -> Result<String, String> {
+    init_manager()?;
+
+    let guard = CLAW_AGENT_MANAGER.lock()
+        .map_err(|e| format!("获取锁失败: {}", e))?;
+
+    let manager = guard.as_ref()
+        .ok_or("管理器未初始化".to_string())?;
+
+    // 如果提供了 LLM 配置，构建配置对象
+    let llm_config = if api.is_some() && api_key.is_some() && model.is_some() {
+        Some(claw_agent::AgentLLMConfig {
+            api: api.unwrap(),
+            model: model.unwrap(),
+            api_key: api_key.unwrap(),
+            base_url: base_url.unwrap_or_default(),
+            workspace: workspace.unwrap_or_default(),
+        })
+    } else {
+        None
+    };
+
+    manager.start_with_llm_config(llm_config)?;
+    Ok("Claw Agent 启动成功".to_string())
+}
+
+/// 停止 Claw Agent
+#[tauri::command]
+pub fn claw_stop_agent() -> Result<String, String> {
+    let guard = CLAW_AGENT_MANAGER.lock()
+        .map_err(|e| format!("获取锁失败: {}", e))?;
+
+    let manager = guard.as_ref()
+        .ok_or("Claw Agent 未初始化".to_string())?;
+
+    manager.stop()?;
+    Ok("Claw Agent 已停止".to_string())
+}
+
+/// 获取 Claw Agent 状态
+#[tauri::command]
+pub fn claw_get_status() -> Result<claw_agent::ClawAgentStatus, String> {
+    let guard = CLAW_AGENT_MANAGER.lock()
+        .map_err(|e| format!("获取锁失败: {}", e))?;
+
+    let manager = guard.as_ref()
+        .ok_or("Claw Agent 未初始化".to_string())?;
+
+    manager.status()
+}
+
+/// 获取 Claw Agent 端口
+#[tauri::command]
+pub fn claw_get_port() -> Result<u16, String> {
+    let guard = CLAW_AGENT_MANAGER.lock()
+        .map_err(|e| format!("获取锁失败: {}", e))?;
+
+    let manager = guard.as_ref()
+        .ok_or("Claw Agent 未初始化".to_string())?;
+
+    manager.port()
+}
+
+// ============================================================================
+// OpenClaw 配置工具命令
+// ============================================================================

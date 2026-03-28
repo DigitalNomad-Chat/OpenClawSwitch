@@ -96,11 +96,37 @@ fn get_agent_workspaces_resource_dir() -> Result<PathBuf, String> {
     let exe_path = std::env::current_exe()
         .map_err(|e| format!("获取执行路径失败: {}", e))?;
 
-    // macOS .app 结构: Clawlite.app/Contents/MacOS/clawlite
-    // 资源在: Clawlite.app/Contents/Resources/resources/presets
+    // 开发环境优先：检查项目目录
+    #[cfg(debug_assertions)]
+    {
+        // 开发环境：src-tauri/resources/presets
+        // 可执行文件在: src-tauri/target/debug/clawlite
+        // 需要向上找到: src-tauri/resources/presets
+        if let Some(src_tauri) = exe_path
+            .parent()  // target/debug
+            .and_then(|p| p.parent())  // target
+            .and_then(|p| p.parent())  // src-tauri
+        {
+            let dev_presets = src_tauri.join("resources").join("presets");
+            println!("🔍 [开发环境] 检查 Workspace 目录: {:?}", dev_presets);
+            if dev_presets.exists() {
+                let manifest_path = dev_presets.join("agent-workspaces-manifest.json");
+                if manifest_path.exists() {
+                    println!("✅ [开发环境] 使用开发环境 Workspace 目录");
+                    return Ok(dev_presets);
+                } else {
+                    println!("⚠️  [开发环境] Workspace 清单文件不存在");
+                }
+            } else {
+                println!("⚠️  [开发环境] 开发目录不存在，尝试生产环境路径");
+            }
+        }
+    }
+
+    // 生产环境：使用 .app 结构
     let presets_dir = if cfg!(target_os = "macos") {
-        // 从 exe: Contents/MacOS/clawlite
-        // 到: Contents/Resources/resources/presets
+        // macOS .app 结构: Clawlite.app/Contents/MacOS/clawlite
+        // 资源在: Clawlite.app/Contents/Resources/resources/presets
         exe_path
             .parent()  // MacOS
             .and_then(|p| p.parent())  // Contents
@@ -109,25 +135,6 @@ fn get_agent_workspaces_resource_dir() -> Result<PathBuf, String> {
             .join("resources")
             .join("presets")
     } else {
-        #[cfg(debug_assertions)]
-        {
-            // 开发环境：src-tauri/resources/presets
-            if let Some(src_tauri) = exe_path
-                .parent()  // target/debug
-                .and_then(|p| p.parent())  // target
-                .and_then(|p| p.parent())  // 项目根
-                .map(|p| p.join("src-tauri"))
-            {
-                let dev_presets = src_tauri.join("resources").join("presets");
-                if dev_presets.exists() {
-                    let manifest_path = dev_presets.join("agent-workspaces-manifest.json");
-                    if manifest_path.exists() {
-                        return Ok(dev_presets);
-                    }
-                }
-            }
-        }
-
         // 其他平台: exe/../resources/presets
         exe_path
             .parent()
@@ -135,6 +142,8 @@ fn get_agent_workspaces_resource_dir() -> Result<PathBuf, String> {
             .join("resources")
             .join("presets")
     };
+
+    println!("🔍 [生产环境] Workspace 目录路径: {:?}", presets_dir);
 
     Ok(presets_dir)
 }

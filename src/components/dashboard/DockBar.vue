@@ -9,7 +9,8 @@ import {
   Settings2,
   Package,
   Users,
-  Clock
+  Clock,
+  Bot
 } from 'lucide-vue-next'
 
 interface DockItem {
@@ -42,6 +43,12 @@ const dockItems = computed<DockItem[]>(() => [
     label: '绑定管理',
     icon: LinkIcon,
     active: props.activeNav === 'bindings'
+  },
+  {
+    id: 'ai-assistant',
+    label: 'AI 助手',
+    icon: Bot,
+    active: props.activeNav === 'ai-assistant'
   },
   {
     id: 'diagnostics',

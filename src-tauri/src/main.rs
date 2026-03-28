@@ -17,6 +17,9 @@ mod skill_presets;
 mod agent_workspaces;
 mod cron_jobs;
 mod agents;
+mod claw_agent;
+mod claw_config;
+mod llm_config;
 
 // ============================================================================
 // 类型定义说明
@@ -988,6 +991,28 @@ fn main() {
             // Agents
             agents::get_available_agents,
             agents::get_available_agents_with_info,
+            // Claw Agent
+            bindings::claw_start_agent,
+            bindings::claw_stop_agent,
+            bindings::claw_get_status,
+            bindings::claw_get_port,
+            // Claw Config
+            claw_config::claw_read_config,
+            claw_config::claw_write_config,
+            claw_config::claw_validate_config,
+            claw_config::claw_add_provider,
+            claw_config::claw_remove_provider,
+            claw_config::claw_set_primary_model,
+            claw_config::claw_add_fallback_model,
+            // LLM Config
+            llm_config::llm_read_config,
+            llm_config::llm_write_config,
+            llm_config::llm_add_provider,
+            llm_config::llm_update_provider,
+            llm_config::llm_delete_provider,
+            llm_config::llm_set_active,
+            llm_config::llm_get_active_config,
+            llm_config::llm_test_connection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

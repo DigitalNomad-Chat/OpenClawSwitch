@@ -51,7 +51,9 @@
         "icons/icon.png"
       ],
       "resources": [
-        "resources/presets"
+        "resources/presets",
+        "resources/claw-agent",
+        "resources/claw-data"
       ],
       "macOS": {
         "entitlements": null,

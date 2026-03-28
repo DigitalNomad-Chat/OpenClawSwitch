@@ -6,6 +6,10 @@ set -e
 
 echo "🚀 Building macOS universal binary..."
 
+# 准备 claw-agent 资源
+echo "📦 准备 claw-agent 资源..."
+./scripts/prepare-claw-agent.sh
+
 # Read version from package.json
 VERSION=$(node -p "require('./package.json').version")
 APP_NAME="Clawlite"

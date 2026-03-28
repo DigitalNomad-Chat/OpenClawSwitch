@@ -110,8 +110,10 @@ fn get_cron_jobs_path() -> Result<PathBuf, String> {
 /// 读取 Cron jobs 清单
 fn read_cron_jobs_manifest() -> Result<CronJobsManifest, String> {
     let path = get_cron_jobs_path()?;
+    println!("🔍 [Cron] 读取文件: {:?}", path);
 
     if !path.exists() {
+        println!("⚠️  [Cron] 文件不存在，返回空清单");
         return Ok(CronJobsManifest {
             version: 1,
             jobs: vec![],
@@ -119,11 +121,20 @@ fn read_cron_jobs_manifest() -> Result<CronJobsManifest, String> {
     }
 
     let content = fs::read_to_string(&path)
-        .map_err(|e| format!("读取 Cron jobs 失败: {}", e))?;
+        .map_err(|e| {
+            println!("❌ [Cron] 读取文件失败: {}", e);
+            format!("读取 Cron jobs 失败: {}", e)
+        })?;
+
+    println!("✅ [Cron] 文件大小: {} 字节", content.len());
 
     let manifest: CronJobsManifest = serde_json::from_str(&content)
-        .map_err(|e| format!("解析 Cron jobs 失败: {}", e))?;
+        .map_err(|e| {
+            println!("❌ [Cron] JSON 解析失败: {}", e);
+            format!("解析 Cron jobs 失败: {}", e)
+        })?;
 
+    println!("✅ [Cron] 成功加载 {} 个任务", manifest.jobs.len());
     Ok(manifest)
 }
 
