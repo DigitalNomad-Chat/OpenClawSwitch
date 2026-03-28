@@ -272,78 +272,71 @@ pub fn get_agent_options(config: Value) -> Result<Vec<(String, String)>, String>
 /// 获取指定渠道的账号列表
 #[tauri::command]
 pub fn get_channel_accounts(channel_id: String) -> Result<Vec<AccountOption>, String> {
-    // 根据渠道返回对应的账号选项
-    // TODO: 后续可以从配置文件或运行时获取真实的账号列表
-    match channel_id.as_str() {
-        "feishu" => Ok(vec![
-            AccountOption {
-                id: "feishu_main".to_string(),
-                name: "飞书主账号".to_string(),
-                description: Some("默认飞书应用".to_string()),
-            },
-            AccountOption {
-                id: "feishu_work".to_string(),
-                name: "飞书工作台".to_string(),
-                description: Some("企业工作台账号".to_string()),
-            },
-        ]),
-        "telegram" => Ok(vec![
-            AccountOption {
-                id: "tg_primary".to_string(),
-                name: "Telegram 主账号".to_string(),
-                description: Some("主要 Telegram Bot".to_string()),
-            },
-        ]),
-        "discord" => Ok(vec![
-            AccountOption {
-                id: "discord_main".to_string(),
-                name: "Discord 主服务器".to_string(),
-                description: Some("主 Discord 服务器".to_string()),
-            },
-        ]),
-        "slack" => Ok(vec![
-            AccountOption {
-                id: "slack_workspace".to_string(),
-                name: "Slack 工作区".to_string(),
-                description: Some("工作区账号".to_string()),
-            },
-        ]),
-        "wecom" => Ok(vec![
-            AccountOption {
-                id: "wecom_corp".to_string(),
-                name: "企业微信".to_string(),
-                description: Some("企业微信应用".to_string()),
-            },
-        ]),
-        "dingtalk" => Ok(vec![
-            AccountOption {
-                id: "dingtalk_main".to_string(),
-                name: "钉钉主应用".to_string(),
-                description: Some("钉钉主应用".to_string()),
-            },
-        ]),
-        "whatsapp" => Ok(vec![
-            AccountOption {
-                id: "whatsapp_business".to_string(),
-                name: "WhatsApp Business".to_string(),
-                description: Some("商业版 WhatsApp".to_string()),
-            },
-        ]),
-        "imessage" => Ok(vec![
-            AccountOption {
-                id: "imessage_icloud".to_string(),
-                name: "iMessage (iCloud)".to_string(),
-                description: Some("iCloud 关联的 iMessage".to_string()),
-            },
-        ]),
-        "qq" => Ok(vec![
-            AccountOption {
-                id: "qq_work".to_string(),
-                name: "QQ 工作群".to_string(),
-                description: Some("工作用 QQ 群".to_string()),
-            },
-        ]),
-        _ => Ok(vec![]), // 未知渠道返回空列表
+    // 调用 openclaw channels list --json 获取真实账号列表
+    let output = std::process::Command::new("openclaw")
+        .args(["channels", "list", "--json"])
+        .output()
+        .map_err(|e| format!("执行 openclaw 命令失败: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("openclaw channels list 执行失败: {}", stderr));
+    }
+
+    // 解析 JSON 输出
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json_str = stdout.trim();
+
+    // 跳过 ANSI 颜色代码，找到 JSON 开始位置
+    let json_start = json_str.find('{').ok_or("无法解析 openclaw 输出")?;
+    let json_str = &json_str[json_start..];
+
+    let data: serde_json::Value = serde_json::from_str(json_str)
+        .map_err(|e| format!("JSON 解析失败: {} - 原始内容: {}", e, &json_str[..json_str.len().min(200)]))?;
+
+    // 从 chat 对象中获取对应渠道的账号列表
+    let chat = data.get("chat").and_then(|c| c.as_object());
+    let accounts = match chat {
+        Some(chat_obj) => {
+            // 渠道 ID 可能需要转换（如 dingtalk 可能叫 dingtalk-connector）
+            let channel_key = match channel_id.as_str() {
+                "dingtalk" => "dingtalk-connector",
+                other => other,
+            };
+
+            chat_obj.get(channel_key)
+                .and_then(|arr| arr.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|account_id| {
+                            // 生成显示名称
+                            let name = match account_id {
+                                "default" => "默认账号".to_string(),
+                                other => format!("{} ({})", capitalize(other), other),
+                            };
+                            AccountOption {
+                                id: format!("{}:{}", channel_id, account_id),
+                                name,
+                                description: None,
+                            }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        }
+        None => Vec::new(),
+    };
+
+    Ok(accounts)
+}
+
+/// 首字母大写
+fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
     }
 }
 
