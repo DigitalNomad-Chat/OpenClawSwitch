@@ -51,23 +51,19 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
                     .unwrap_or("")
                     .to_string();
 
-                // 解析路由模式字段
-                let routing_mode = obj
-                    .get("routingMode")
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-
-                let account_id = obj
-                    .get("accountId")
-                    .and_then(|v| v.as_str())
-                    .map(String::from);
-
-                let (channel, peer_kind, peer_id) = if let Some(match_obj) = obj.get("match").and_then(|m| m.as_object()) {
+                // 解析路由模式字段（从 match 内部推断）
+                let (channel, peer_kind, peer_id, account_id) = if let Some(match_obj) = obj.get("match").and_then(|m| m.as_object()) {
                     let channel = match_obj
                         .get("channel")
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string();
+
+                    // 从 match 内部读取 accountId
+                    let account_id = match_obj
+                        .get("accountId")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
 
                     let (peer_kind, peer_id) = if let Some(peer) = match_obj.get("peer").and_then(|p| p.as_object()) {
                         let kind = peer
@@ -87,9 +83,16 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
                         ("dm".to_string(), "".to_string())
                     };
 
-                    (channel, peer_kind, peer_id)
+                    (channel, peer_kind, peer_id, account_id)
                 } else {
-                    ("".to_string(), "dm".to_string(), "".to_string())
+                    ("".to_string(), "dm".to_string(), "".to_string(), None)
+                };
+
+                // 根据 match 内容推断路由模式
+                let routing_mode = match (&account_id, peer_id.is_empty()) {
+                    (Some(_), true) => Some("accountId".to_string()),
+                    (Some(_), false) => Some("both".to_string()),
+                    (None, _) => None, // peer 模式（默认）
                 };
 
                 bindings.push(BindingInfo {
@@ -133,29 +136,34 @@ pub fn add_binding(mut config: Value, request: BindingRequest) -> Result<Value, 
         return Err("账号 ID 不能为空".to_string());
     }
 
-    // 创建新的绑定对象
-    let mut new_binding = json!({
-        "agentId": request.agent_id,
-        "match": {
+    // 根据路由模式构建 match 对象（accountId 和 peer 都在 match 内部）
+    let match_obj = match mode {
+        "accountId" => json!({
+            "channel": request.channel,
+            "accountId": request.account_id.as_deref().unwrap_or("")
+        }),
+        "both" => json!({
+            "channel": request.channel,
+            "accountId": request.account_id.as_deref().unwrap_or(""),
+            "peer": {
+                "kind": request.peer_kind,
+                "id": request.peer_id
+            }
+        }),
+        // peer 模式（默认）
+        _ => json!({
             "channel": request.channel,
             "peer": {
                 "kind": request.peer_kind,
                 "id": request.peer_id
             }
-        }
-    });
+        }),
+    };
 
-    // 添加可选字段
-    if let Some(routing_mode) = &request.routing_mode {
-        if !routing_mode.is_empty() {
-            new_binding["routingMode"] = json!(routing_mode);
-        }
-    }
-    if let Some(account_id) = &request.account_id {
-        if !account_id.is_empty() {
-            new_binding["accountId"] = json!(account_id);
-        }
-    }
+    let new_binding = json!({
+        "agentId": request.agent_id,
+        "match": match_obj
+    });
 
     // 添加到数组
     if let Some(bindings) = config.get_mut("bindings").and_then(|b| b.as_array_mut()) {
@@ -205,29 +213,35 @@ pub fn update_binding(mut config: Value, index: usize, request: BindingRequest) 
             return Err(format!("绑定索引 {} 超出范围", index));
         }
 
-        // 创建更新后的绑定对象
-        let mut updated_binding = json!({
-            "agentId": request.agent_id,
-            "match": {
+        // 根据路由模式构建 match 对象（accountId 和 peer 都在 match 内部）
+        let mode = request.routing_mode.as_deref().unwrap_or("peer");
+        let match_obj = match mode {
+            "accountId" => json!({
+                "channel": request.channel,
+                "accountId": request.account_id.as_deref().unwrap_or("")
+            }),
+            "both" => json!({
+                "channel": request.channel,
+                "accountId": request.account_id.as_deref().unwrap_or(""),
+                "peer": {
+                    "kind": request.peer_kind,
+                    "id": request.peer_id
+                }
+            }),
+            // peer 模式（默认）
+            _ => json!({
                 "channel": request.channel,
                 "peer": {
                     "kind": request.peer_kind,
                     "id": request.peer_id
                 }
-            }
-        });
+            }),
+        };
 
-        // 添加可选字段
-        if let Some(routing_mode) = &request.routing_mode {
-            if !routing_mode.is_empty() {
-                updated_binding["routingMode"] = json!(routing_mode);
-            }
-        }
-        if let Some(account_id) = &request.account_id {
-            if !account_id.is_empty() {
-                updated_binding["accountId"] = json!(account_id);
-            }
-        }
+        let updated_binding = json!({
+            "agentId": request.agent_id,
+            "match": match_obj
+        });
 
         bindings[index] = updated_binding;
     } else {

@@ -239,8 +239,9 @@ const loadAccountOptions = () => {
   if (accounts && typeof accounts === 'object') {
     for (const [id, node] of Object.entries(accounts)) {
       if (typeof node === 'object') {
+        // 直接使用纯账号 ID（不带渠道前缀），与 OpenClaw 配置格式一致
         result.push({
-          id: `${channelId}:${id}`,
+          id: id,
           name: id === 'default' ? '默认账号' : id,
         })
       }
@@ -249,7 +250,7 @@ const loadAccountOptions = () => {
 
   // 顶层配置也视为 default 账号（非 accounts 里的）
   if (channelNode.appId || channelNode.botToken || channelNode.token) {
-    result.unshift({ id: `${channelId}:default`, name: '默认账号' })
+    result.unshift({ id: 'default', name: '默认账号' })
   }
 
   accountOptions.value = result
@@ -267,7 +268,7 @@ const onChannelChange = () => {
 
 // 路由模式变更时处理
 const onRoutingModeChange = () => {
-  if (formData.value.routingMode === 'accountId' && formData.value.channel) {
+  if ((formData.value.routingMode === 'accountId' || formData.value.routingMode === 'both') && formData.value.channel) {
     loadAccountOptions()
   }
 }
@@ -359,17 +360,18 @@ const closeAddModal = () => {
 
 const openEditModal = (binding: BindingInfo) => {
   editingBinding.value = binding
+  // 从后端返回的 routingMode 字段推断模式，后端已从 match 内容自动推断
+  const mode = (binding as any).routingMode || 'peer'
   formData.value = {
     agentId: binding.agentId,
     channel: binding.channel,
-    routingMode: (binding as any).routingMode || 'peer',
+    routingMode: mode,
     accountId: (binding as any).accountId || '',
     peerKind: binding.peerKind,
     peerId: binding.peerId
   }
   // 如果有账号模式，加载账号选项
-  if ((binding as any).routingMode !== 'peer' && binding.channel) {
-    formData.value.channel = binding.channel
+  if ((mode === 'accountId' || mode === 'both') && binding.channel) {
     loadAccountOptions()
   }
   showEditModal.value = true
@@ -534,6 +536,47 @@ const getPeerKindLabel = (kind: string) => {
   return kind === 'dm' ? '私聊' : '群聊'
 }
 
+// ============================================================================
+// 绑定卡片多模式显示 - 根据 routingMode 适配三种路由方式
+// ============================================================================
+
+/** 获取绑定的路由模式（兼容后端未返回 routingMode 的旧数据） */
+const getBindingMode = (binding: BindingInfo): string => {
+  return (binding as any).routingMode
+    || (binding.peerId ? 'peer'
+      : (binding as any).accountId ? 'accountId'
+      : 'peer')
+}
+
+/** 获取绑定卡片图标组件 */
+const getBindingIcon = (binding: BindingInfo) => {
+  const mode = getBindingMode(binding)
+  if (mode === 'accountId') return Bot
+  return getPeerKindIcon(binding.peerKind)
+}
+
+/** 获取绑定的类型标签文字 */
+const getBindingModeLabel = (binding: BindingInfo): string => {
+  const mode = getBindingMode(binding)
+  if (mode === 'accountId') return 'Account'
+  if (mode === 'both') return `${getPeerKindLabel(binding.peerKind)} + Account`
+  return getPeerKindLabel(binding.peerKind)
+}
+
+/** 获取绑定底部显示的标识 ID */
+const getBindingDisplayId = (binding: BindingInfo): string => {
+  const mode = getBindingMode(binding)
+  const accountId = (binding as any).accountId as string | undefined
+  if (mode === 'accountId' && accountId) return `accountId: ${accountId}`
+  if (mode === 'both') {
+    const parts: string[] = []
+    if (accountId) parts.push(`account: ${accountId}`)
+    if (binding.peerId) parts.push(`peer: ${maskPeerId(binding.peerId)}`)
+    return parts.join(' | ') || '未配置'
+  }
+  return maskPeerId(binding.peerId) || '未配置 Peer ID'
+}
+
 const getPeerKindIcon = (kind: string) => {
   return kind === 'dm' ? MessageCircle : Users
 }
@@ -566,9 +609,12 @@ const quickBindAgent = (agent: UnboundAgent) => {
   formData.value = {
     agentId: agent.id,
     channel: '',
+    routingMode: 'peer',
+    accountId: '',
     peerKind: 'group',
     peerId: ''
   }
+  accountOptions.value = []
   showAddModal.value = true
 }
 
@@ -584,16 +630,23 @@ const dismissWarning = () => {
 }
 
 // 渠道统计辅助函数
+const isBindingActive = (binding: BindingInfo): boolean => {
+  const mode = getBindingMode(binding)
+  if (mode === 'accountId') return !!(binding as any).accountId
+  if (mode === 'both') return !!(binding as any).accountId || (binding.peerId && binding.peerId.length > 0)
+  return !!(binding.peerId && binding.peerId.length > 0)
+}
+
 const getChannelStatusText = (bindings: BindingInfo[]) => {
   if (bindings.length === 0) return '未配置'
-  const activeCount = bindings.filter(b => b.peerId && b.peerId.length > 0).length
+  const activeCount = bindings.filter(isBindingActive).length
   if (activeCount === 0) return '未激活'
   if (activeCount === bindings.length) return '全部活跃'
   return `活跃 ${activeCount}/${bindings.length}`
 }
 
 const getActiveBindingsCount = (bindings: BindingInfo[]) => {
-  return bindings.filter(b => b.peerId && b.peerId.length > 0).length
+  return bindings.filter(isBindingActive).length
 }
 
 // Peer ID 脱敏显示
@@ -767,14 +820,14 @@ onMounted(async () => {
                  :key="binding.index"
                  class="binding-card group">
               <div class="binding-header">
-                <component :is="getPeerKindIcon(binding.peerKind)" class="binding-icon" />
+                <component :is="getBindingIcon(binding)" class="binding-icon" />
                 <div class="binding-tags">
                   <span class="agent-tag">
                     {{ getAgentName(binding.agentId) }}
                   </span>
-                  <span class="type-tag">
-                    <component :is="getPeerKindIcon(binding.peerKind)" class="w-3 h-3" />
-                    {{ getPeerKindLabel(binding.peerKind) }}
+                  <span class="type-tag" :class="'type-tag--' + getBindingMode(binding)">
+                    <component :is="getBindingIcon(binding)" class="w-3 h-3" />
+                    {{ getBindingModeLabel(binding) }}
                   </span>
                 </div>
                 <div class="binding-actions">
@@ -787,7 +840,7 @@ onMounted(async () => {
                 </div>
               </div>
               <code class="peer-id-display">
-                {{ maskPeerId(binding.peerId) || '未配置 Peer ID' }}
+                {{ getBindingDisplayId(binding) }}
               </code>
             </div>
           </div>
@@ -876,11 +929,7 @@ onMounted(async () => {
               <Button variant="outline" size="sm" @click="showAccountDropdown = !showAccountDropdown"
                       :disabled="!formData.channel"
                       class="w-full h-auto min-h-9 py-2 text-left justify-between">
-                <span v-if="!accountLoading" class="flex items-center gap-2">
-                  <span class="animate-spin w-4 h-4 border-2 border-[var(--oc-accent)] border-t-transparent rounded-full"></span>
-                  <span style="font-size: var(--text-sm);">加载中...</span>
-                </span>
-                <span v-else-if="!formData.channel" style="font-size: var(--text-sm); color: var(--oc-text-quiet);">请先选择渠道</span>
+                <span v-if="!formData.channel" style="font-size: var(--text-sm); color: var(--oc-text-quiet);">请先选择渠道</span>
                 <span v-else-if="accountOptions.length === 0" style="font-size: var(--text-sm); color: var(--oc-text-quiet);">该渠道无可用账号</span>
                 <span v-else style="font-size: var(--text-sm);">{{ selectedAccountName }}</span>
                 <ChevronDown class="w-4 h-4 flex-shrink-0" :class="{ 'rotate-180': showAccountDropdown }" />
@@ -1019,11 +1068,7 @@ onMounted(async () => {
               <Button variant="outline" size="sm" @click="showAccountDropdown = !showAccountDropdown"
                       :disabled="!formData.channel"
                       class="w-full h-auto min-h-9 py-2 text-left justify-between">
-                <span v-if="!accountLoading" class="flex items-center gap-2">
-                  <span class="animate-spin w-4 h-4 border-2 border-[var(--oc-accent)] border-t-transparent rounded-full"></span>
-                  <span style="font-size: var(--text-sm);">加载中...</span>
-                </span>
-                <span v-else-if="!formData.channel" style="font-size: var(--text-sm); color: var(--oc-text-quiet);">请先选择渠道</span>
+                <span v-if="!formData.channel" style="font-size: var(--text-sm); color: var(--oc-text-quiet);">请先选择渠道</span>
                 <span v-else-if="accountOptions.length === 0" style="font-size: var(--text-sm); color: var(--oc-text-quiet);">该渠道无可用账号</span>
                 <span v-else style="font-size: var(--text-sm);">{{ selectedAccountName }}</span>
                 <ChevronDown class="w-4 h-4 flex-shrink-0" :class="{ 'rotate-180': showAccountDropdown }" />
@@ -1098,10 +1143,11 @@ onMounted(async () => {
   background: var(--oc-card);
   border: 1px solid var(--oc-card-border);
   transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
 }
 
 .binding-card:hover {
-  background: var(--oc-item-hover);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -1160,6 +1206,18 @@ onMounted(async () => {
   background: color-mix(in srgb, var(--primary-500) 18%, transparent);
 }
 
+/* Account 模式标签 */
+.type-tag--accountId {
+  background: color-mix(in srgb, var(--oc-accent) 15%, transparent);
+  color: var(--oc-accent);
+}
+
+/* Both 混合模式标签 */
+.type-tag--both {
+  background: color-mix(in srgb, var(--oc-warning) 15%, transparent);
+  color: var(--oc-warning);
+}
+
 /* Peer ID 显示 */
 .peer-id-display {
   background: var(--oc-card-elevated);
@@ -1176,17 +1234,50 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-/* 操作按钮区域 */
+/* 操作按钮遮罩层 - Hover 时覆盖卡片，居中显示按钮 */
 .binding-actions {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  border-radius: var(--radius-md);
   opacity: 0;
-  transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  visibility: hidden;
+  transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
+              visibility 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 5;
 }
 
 .binding-card:hover .binding-actions {
   opacity: 1;
+  visibility: visible;
+}
+
+/* 遮罩层内的按钮样式 */
+.binding-actions :deep(button) {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--oc-text-primary);
+  border-radius: var(--radius-md);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.binding-actions :deep(button:hover) {
+  background: #ffffff;
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.binding-actions :deep(button.text-destructive) {
+  color: #ef4444;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1290,10 +1381,6 @@ onMounted(async () => {
    深色模式适配 - Dark Mode Adaptation
    ═══════════════════════════════════════════════════════════ */
 
-/* ═══════════════════════════════════════════════════════════
-   深色模式适配 - Dark Mode Adaptation
-   ═══════════════════════════════════════════════════════════ */
-
 :root[data-theme='dark'] .agent-tag {
   background: var(--primary-600);
 }
@@ -1303,10 +1390,35 @@ onMounted(async () => {
   color: var(--primary-300);
 }
 
+:root[data-theme='dark'] .type-tag--accountId {
+  background: color-mix(in srgb, var(--oc-accent) 20%, transparent);
+  color: var(--oc-accent);
+}
+
+:root[data-theme='dark'] .type-tag--both {
+  background: color-mix(in srgb, var(--oc-warning) 20%, transparent);
+  color: var(--oc-warning);
+}
+
 :root[data-theme='dark'] .peer-id-display {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.7);
+}
+
+/* 遮罩层深色模式 */
+:root[data-theme='dark'] .binding-actions {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+:root[data-theme='dark'] .binding-actions :deep(button) {
+  background: rgba(255, 255, 255, 0.15);
+  color: #e5e7eb;
+}
+
+:root[data-theme='dark'] .binding-actions :deep(button:hover) {
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 /* 未绑定卡片深色模式 */
