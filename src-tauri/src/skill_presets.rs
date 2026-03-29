@@ -3,6 +3,7 @@
 // 提供预设技能的读取、安装、卸载等功能
 // ============================================================================
 
+use obfstr::obfstr as s;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -189,8 +190,9 @@ pub struct SkillsBySource {
 
 /// 获取预设资源目录路径
 fn get_presets_resource_dir() -> Result<PathBuf, String> {
+    s! { let exec_err = "获取执行路径失败: "; }
     let exe_path = std::env::current_exe()
-        .map_err(|e| format!("获取执行路径失败: {}", e))?;
+        .map_err(|e| format!("{}{}", exec_err, e))?;
 
     // 开发环境优先：检查项目目录
     #[cfg(debug_assertions)]
@@ -203,7 +205,9 @@ fn get_presets_resource_dir() -> Result<PathBuf, String> {
             .and_then(|p| p.parent())  // target
             .and_then(|p| p.parent())  // src-tauri
         {
-            let dev_presets = src_tauri.join("resources").join("presets");
+            s! { let res_dir = "resources"; }
+            s! { let presets_dir_name = "presets"; }
+            let dev_presets = src_tauri.join(res_dir).join(presets_dir_name);
             println!("🔍 [开发环境] exe_path: {:?}", exe_path);
             println!("🔍 [开发环境] src_tauri: {:?}", src_tauri);
             println!("🔍 [开发环境] 检查预设目录: {:?}", dev_presets);
@@ -217,23 +221,25 @@ fn get_presets_resource_dir() -> Result<PathBuf, String> {
     }
 
     // 生产环境：使用 .app 结构
+    s! { let resources = "Resources"; }
+    s! { let presets_name = "presets"; }
     let presets_dir = if cfg!(target_os = "macos") {
         // macOS .app 结构: Clawlite.app/Contents/MacOS/clawlite
         // 资源在: Clawlite.app/Contents/Resources/resources/presets
         exe_path
             .parent()  // MacOS
             .and_then(|p| p.parent())  // Contents
-            .ok_or("无法获取 Contents 目录")?
-            .join("Resources")
+            .ok_or(s!("无法获取 Contents 目录").to_string())?
+            .join(resources)
             .join("resources")
-            .join("presets")
+            .join(presets_name)
     } else {
         // 其他平台: exe/../resources/presets
         exe_path
             .parent()
-            .ok_or("无法获取父目录")?
+            .ok_or(s!("无法获取父目录").to_string())?
             .join("resources")
-            .join("presets")
+            .join(presets_name)
     };
 
     println!("🔍 [生产环境] 预设目录路径: {:?}", presets_dir);
@@ -247,30 +253,35 @@ fn get_presets_resource_dir() -> Result<PathBuf, String> {
 
 /// 获取用户配置目录
 fn get_user_config_dir() -> Result<PathBuf, String> {
-    let home_dir = dirs::home_dir().ok_or("无法获取用户主目录")?;
-    Ok(home_dir.join(".openclaw"))
+    let home_dir = dirs::home_dir().ok_or(s!("无法获取用户主目录").to_string())?;
+    s! { let openclaw = ".openclaw"; }
+    Ok(home_dir.join(openclaw))
 }
 
 /// 获取用户技能目录 (~/.openclaw/workspace/skills/)
 fn get_skills_dir() -> Result<PathBuf, String> {
     let config_dir = get_user_config_dir()?;
-    let workspace_dir = config_dir.join("workspace");
-    Ok(workspace_dir.join("skills"))
+    s! { let workspace = "workspace"; }
+    s! { let skills = "skills"; }
+    let workspace_dir = config_dir.join(workspace);
+    Ok(workspace_dir.join(skills))
 }
 
 /// 获取已安装技能文件路径
 fn get_installed_skills_path() -> Result<PathBuf, String> {
     let config_dir = get_user_config_dir()?;
-    Ok(config_dir.join("installed-skills.json"))
+    s! { let installed_file = "installed-skills.json"; }
+    Ok(config_dir.join(installed_file))
 }
 
 /// 读取预设清单
 fn read_manifest() -> Result<PresetManifest, String> {
     let presets_dir = get_presets_resource_dir()?;
-    let manifest_path = presets_dir.join("manifest.json");
+    s! { let manifest_file = "manifest.json"; }
+    let manifest_path = presets_dir.join(manifest_file);
 
     if !manifest_path.exists() {
-        return Err("预设清单文件不存在".to_string());
+        return Err(s!("预设清单文件不存在").to_string());
     }
 
     let content = fs::read_to_string(&manifest_path)
@@ -334,7 +345,8 @@ fn chrono_now() -> String {
 fn check_command_exists(command: &str) -> bool {
     #[cfg(target_os = "windows")]
     {
-        Command::new("where")
+        s! { let where_cmd = "where"; }
+        Command::new(where_cmd)
             .arg(command)
             .output()
             .map(|o| o.status.success())
@@ -343,7 +355,8 @@ fn check_command_exists(command: &str) -> bool {
 
     #[cfg(not(target_os = "windows"))]
     {
-        Command::new("which")
+        s! { let which_cmd = "which"; }
+        Command::new(which_cmd)
             .arg(command)
             .output()
             .map(|o| o.status.success())
@@ -384,7 +397,10 @@ fn copy_dir(src: &PathBuf, dst: &PathBuf) -> Result<(), String> {
 /// 返回 (name, description, document_content, document_name)
 fn parse_skill_document(dir: &std::path::Path) -> (String, String, Option<String>, Option<String>) {
     // 尝试按优先级读取文档文件
-    let doc_files = ["SKILL.md", "skill.md", "README.md"];
+    s! { let skill_md = "SKILL.md"; }
+    s! { let skill_md_lower = "skill.md"; }
+    s! { let readme_md = "README.md"; }
+    let doc_files = [skill_md, skill_md_lower, readme_md];
 
     for doc_name in &doc_files {
         let doc_path = dir.join(doc_name);
@@ -422,7 +438,8 @@ fn parse_yaml_front_matter(content: &str) -> Option<(String, String)> {
     let content = content.trim();
 
     // 检查是否有 front matter
-    if !content.starts_with("---") {
+    s! { let front_matter_marker = "---"; }
+    if !content.starts_with(front_matter_marker) {
         return None;
     }
 
@@ -457,6 +474,9 @@ fn scan_skills_in_dir(dir: &std::path::Path, source: SkillSource, agent_name: Op
         return skills;
     }
 
+    s! { let node_modules = "node_modules"; }
+    s! { let pycache = "__pycache__"; }
+
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
@@ -465,7 +485,7 @@ fn scan_skills_in_dir(dir: &std::path::Path, source: SkillSource, agent_name: Op
                 let dir_name = path.file_name()
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_default();
-                if dir_name.starts_with('.') || dir_name == "node_modules" || dir_name == "__pycache__" {
+                if dir_name.starts_with('.') || dir_name == node_modules || dir_name == pycache {
                     continue;
                 }
 
@@ -493,7 +513,9 @@ fn scan_skills_in_dir(dir: &std::path::Path, source: SkillSource, agent_name: Op
 /// 获取 agents 目录路径
 fn get_agents_dir() -> Result<PathBuf, String> {
     let config_dir = get_user_config_dir()?;
-    Ok(config_dir.join("workspace").join("agents"))
+    s! { let workspace = "workspace"; }
+    s! { let agents = "agents"; }
+    Ok(config_dir.join(workspace).join(agents))
 }
 
 /// 扫描所有已安装的非预设技能
@@ -523,7 +545,8 @@ fn scan_all_installed_skills() -> (Vec<InstalledSkillInfo>, HashMap<String, Vec<
                             continue;
                         }
 
-                        let agent_skills_dir = agent_path.join("skills");
+                        s! { let skills_dir_name = "skills"; }
+                        let agent_skills_dir = agent_path.join(skills_dir_name);
                         let skills = scan_skills_in_dir(&agent_skills_dir, SkillSource::Agent, Some(agent_name.clone()));
                         if !skills.is_empty() {
                             agent_skills.insert(agent_name, skills);
@@ -560,12 +583,15 @@ pub fn get_skills_with_status() -> Result<Vec<SkillWithStatus>, String> {
     let manifest = read_manifest()?;
     let installed = read_installed_skills()?;
 
+    s! { let darwin = "darwin"; }
+    s! { let windows = "windows"; }
+    s! { let linux = "linux"; }
     let current_os = if cfg!(target_os = "macos") {
-        "darwin"
+        darwin
     } else if cfg!(target_os = "windows") {
-        "windows"
+        windows
     } else {
-        "linux"
+        linux
     };
 
     let skills_with_status: Vec<SkillWithStatus> = manifest
@@ -689,7 +715,8 @@ pub fn install_skill(skill_id: String) -> Result<String, String> {
     println!("📋 [安装] 找到预设: {} (path: {})", preset.name, preset.path);
 
     let presets_dir = get_presets_resource_dir()?;
-    let skills_dir = presets_dir.join("skills");
+    s! { let skills = "skills"; }
+    let skills_dir = presets_dir.join(skills);
 
     println!("📁 [安装] 预设目录: {:?}", presets_dir);
     println!("📁 [安装] skills 目录: {:?}", skills_dir);
@@ -793,7 +820,7 @@ pub fn enable_skill(skill_id: String) -> Result<String, String> {
     installed.updated_at = chrono_now();
     save_installed_skills(&installed)?;
 
-    Ok("技能已启用".to_string())
+    Ok(s!("技能已启用").to_string())
 }
 
 /// 禁用技能
@@ -825,7 +852,7 @@ pub fn disable_skill(skill_id: String) -> Result<String, String> {
     installed.updated_at = chrono_now();
     save_installed_skills(&installed)?;
 
-    Ok("技能已禁用".to_string())
+    Ok(s!("技能已禁用").to_string())
 }
 
 /// 检查技能依赖状态
@@ -838,12 +865,15 @@ pub fn check_skill_dependencies(skill_id: String) -> Result<Vec<String>, String>
         .find(|s| s.id == skill_id)
         .ok_or_else(|| format!("未找到技能: {}", skill_id))?;
 
+    s! { let darwin = "darwin"; }
+    s! { let windows = "windows"; }
+    s! { let linux = "linux"; }
     let current_os = if cfg!(target_os = "macos") {
-        "darwin"
+        darwin
     } else if cfg!(target_os = "windows") {
-        "windows"
+        windows
     } else {
-        "linux"
+        linux
     };
 
     let mut issues = Vec::new();
@@ -882,7 +912,7 @@ pub fn check_skill_dependencies(skill_id: String) -> Result<Vec<String>, String>
     }
 
     if issues.is_empty() {
-        issues.push("所有依赖已满足".to_string());
+        issues.push(s!("所有依赖已满足").to_string());
     }
 
     Ok(issues)
@@ -1020,6 +1050,16 @@ pub fn get_dependency_install_guide(skill_id: String) -> Result<Value, String> {
         .find(|s| s.id == skill_id)
         .ok_or_else(|| format!("未找到技能: {}", skill_id))?;
 
+    s! { let brew = "brew"; }
+    s! { let npm = "npm"; }
+    s! { let pnpm = "pnpm"; }
+    s! { let yarn = "yarn"; }
+    s! { let bun = "bun"; }
+    s! { let pip = "pip"; }
+    s! { let uv = "uv"; }
+    s! { let go_cmd = "go"; }
+    s! { let env_var_prefix = "环境变量: "; }
+
     let mut missing_deps = Vec::new();
     let mut install_commands = Vec::new();
 
@@ -1031,14 +1071,14 @@ pub fn get_dependency_install_guide(skill_id: String) -> Result<Value, String> {
 
                     if let Some(install) = &preset.install {
                         let cmd = match install.kind.as_str() {
-                            "brew" => format!("brew install {}", install.formula.as_ref().unwrap_or(&bin)),
-                            "npm" => format!("npm install -g {}", install.package.as_ref().unwrap_or(&bin)),
-                            "pnpm" => format!("pnpm add -g {}", install.package.as_ref().unwrap_or(&bin)),
-                            "yarn" => format!("yarn global add {}", install.package.as_ref().unwrap_or(&bin)),
-                            "bun" => format!("bun add -g {}", install.package.as_ref().unwrap_or(&bin)),
-                            "pip" => format!("pip install {}", install.package.as_ref().unwrap_or(&bin)),
-                            "uv" => format!("uv pip install {}", install.package.as_ref().unwrap_or(&bin)),
-                            "go" => format!("go install {}", install.package.as_ref().unwrap_or(&bin)),
+                            k if k == brew => format!("brew install {}", install.formula.as_ref().unwrap_or(&bin)),
+                            k if k == npm => format!("npm install -g {}", install.package.as_ref().unwrap_or(&bin)),
+                            k if k == pnpm => format!("pnpm add -g {}", install.package.as_ref().unwrap_or(&bin)),
+                            k if k == yarn => format!("yarn global add {}", install.package.as_ref().unwrap_or(&bin)),
+                            k if k == bun => format!("bun add -g {}", install.package.as_ref().unwrap_or(&bin)),
+                            k if k == pip => format!("pip install {}", install.package.as_ref().unwrap_or(&bin)),
+                            k if k == uv => format!("uv pip install {}", install.package.as_ref().unwrap_or(&bin)),
+                            k if k == go_cmd => format!("go install {}", install.package.as_ref().unwrap_or(&bin)),
                             _ => format!("# 请手动安装: {}", bin),
                         };
                         install_commands.push(cmd);
@@ -1050,7 +1090,7 @@ pub fn get_dependency_install_guide(skill_id: String) -> Result<Value, String> {
         if let Some(env_vars) = &requires.env {
             for env_var in env_vars {
                 if std::env::var(env_var).is_err() {
-                    missing_deps.push(format!("环境变量: {}", env_var));
+                    missing_deps.push(format!("{}{}", env_var_prefix, env_var));
                 }
             }
         }
@@ -1199,7 +1239,7 @@ pub fn delete_installed_skill(skill_id: String, skill_path: String) -> Result<bo
     // 检查是否是预设技能（预设技能不应该通过此命令删除）
     let manifest = read_manifest()?;
     if manifest.skills.iter().any(|s| s.id == skill_id) {
-        return Err("不能删除预设技能，请使用卸载功能".to_string());
+        return Err(s!("不能删除预设技能，请使用卸载功能").to_string());
     }
 
     // 检查技能目录是否在允许的路径下
@@ -1210,7 +1250,7 @@ pub fn delete_installed_skill(skill_id: String, skill_path: String) -> Result<bo
     let is_under_agents = skill_path.starts_with(agents_dir.to_string_lossy().as_ref());
 
     if !is_under_workspace && !is_under_agents {
-        return Err("只能删除工作空间下的技能".to_string());
+        return Err(s!("只能删除工作空间下的技能").to_string());
     }
 
     // 删除目录
@@ -1242,15 +1282,16 @@ pub fn open_skill_folder(skill_path: String) -> Result<bool, String> {
 
     #[cfg(target_os = "macos")]
     {
+        s! { let open_cmd = "open"; }
         let dir = if path.is_dir() {
             path.to_path_buf()
         } else {
             path.parent()
                 .map(|p| p.to_path_buf())
-                .ok_or("无法获取父目录")?
+                .ok_or(s!("无法获取父目录").to_string())?
         };
 
-        Command::new("open")
+        Command::new(open_cmd)
             .arg(&dir)
             .output()
             .map_err(|e| format!("打开文件夹失败: {}", e))?;
@@ -1258,7 +1299,8 @@ pub fn open_skill_folder(skill_path: String) -> Result<bool, String> {
 
     #[cfg(target_os = "windows")]
     {
-        Command::new("explorer")
+        s! { let explorer_cmd = "explorer"; }
+        Command::new(explorer_cmd)
             .arg(path)
             .output()
             .map_err(|e| format!("打开文件夹失败: {}", e))?;
@@ -1266,7 +1308,8 @@ pub fn open_skill_folder(skill_path: String) -> Result<bool, String> {
 
     #[cfg(target_os = "linux")]
     {
-        Command::new("xdg-open")
+        s! { let xdg_open_cmd = "xdg-open"; }
+        Command::new(xdg_open_cmd)
             .arg(path)
             .output()
             .map_err(|e| format!("打开文件夹失败: {}", e))?;

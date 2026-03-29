@@ -2,6 +2,7 @@
 // 负责连接配置的持久化存储（保存/加载/删除）
 
 use crate::ssh::SshProfile;
+use obfstr::obfstr as s;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -14,13 +15,15 @@ struct ProfileStore {
 
 /// 获取配置文件存储路径
 fn get_profiles_path() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
-    let dir = home.join(".openclaw");
+    let home = dirs::home_dir().ok_or(s!("无法获取用户主目录").to_string())?;
+    s! { let openclaw_dir = ".openclaw"; }
+    s! { let profiles_file = "ssh_profiles.json"; }
+    let dir = home.join(openclaw_dir);
     if !dir.exists() {
         fs::create_dir_all(&dir)
             .map_err(|e| format!("创建目录失败: {}", e))?;
     }
-    Ok(dir.join("ssh_profiles.json"))
+    Ok(dir.join(profiles_file))
 }
 
 /// 从文件加载配置列表

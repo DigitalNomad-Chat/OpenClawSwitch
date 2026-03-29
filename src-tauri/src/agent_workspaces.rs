@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use obfstr::obfstr as s;
 
 // ============================================================================
 // 类型定义
@@ -87,8 +88,8 @@ fn chrono_now() -> String {
 
 /// 获取用户配置目录
 fn get_user_config_dir() -> Result<PathBuf, String> {
-    let home_dir = dirs::home_dir().ok_or("无法获取用户主目录")?;
-    Ok(home_dir.join(".openclaw"))
+    let home_dir = dirs::home_dir().ok_or(s!("无法获取用户主目录"))?;
+    Ok(home_dir.join(s!(".openclaw")))
 }
 
 /// 获取 Agent Workspace 资源目录路径
@@ -110,7 +111,7 @@ fn get_agent_workspaces_resource_dir() -> Result<PathBuf, String> {
             let dev_presets = src_tauri.join("resources").join("presets");
             println!("🔍 [开发环境] 检查 Workspace 目录: {:?}", dev_presets);
             if dev_presets.exists() {
-                let manifest_path = dev_presets.join("agent-workspaces-manifest.json");
+                let manifest_path = dev_presets.join(s!("agent-workspaces-manifest.json"));
                 if manifest_path.exists() {
                     println!("✅ [开发环境] 使用开发环境 Workspace 目录");
                     return Ok(dev_presets);
@@ -130,7 +131,7 @@ fn get_agent_workspaces_resource_dir() -> Result<PathBuf, String> {
         exe_path
             .parent()  // MacOS
             .and_then(|p| p.parent())  // Contents
-            .ok_or("无法获取 Contents 目录")?
+            .ok_or(s!("无法获取 Contents 目录"))?
             .join("Resources")
             .join("resources")
             .join("presets")
@@ -138,7 +139,7 @@ fn get_agent_workspaces_resource_dir() -> Result<PathBuf, String> {
         // 其他平台: exe/../resources/presets
         exe_path
             .parent()
-            .ok_or("无法获取父目录")?
+            .ok_or(s!("无法获取父目录"))?
             .join("resources")
             .join("presets")
     };
@@ -151,7 +152,7 @@ fn get_agent_workspaces_resource_dir() -> Result<PathBuf, String> {
 /// 读取 Agent Workspace 清单
 fn read_agent_workspaces_manifest() -> Result<AgentWorkspaceManifest, String> {
     let resources_dir = get_agent_workspaces_resource_dir()?;
-    let manifest_path = resources_dir.join("agent-workspaces-manifest.json");
+    let manifest_path = resources_dir.join(s!("agent-workspaces-manifest.json"));
 
     if !manifest_path.exists() {
         return Err(format!(
@@ -172,7 +173,7 @@ fn read_agent_workspaces_manifest() -> Result<AgentWorkspaceManifest, String> {
 /// 获取已激活 Workspace 文件路径
 fn get_activated_workspaces_path() -> Result<PathBuf, String> {
     let config_dir = get_user_config_dir()?;
-    Ok(config_dir.join("activated-workspaces.json"))
+    Ok(config_dir.join(s!("activated-workspaces.json")))
 }
 
 /// 读取已激活 Workspace 状态
@@ -217,11 +218,11 @@ fn save_activated_workspaces(activated: &ActivatedWorkspaces) -> Result<(), Stri
 /// 获取 OpenClaw workspace agents 目录路径
 fn get_openclaw_agents_dir() -> Result<PathBuf, String> {
     let home_dir = std::env::var("HOME")
-        .map_err(|_| "无法获取 HOME 目录".to_string())?;
+        .map_err(|_| s!("无法获取 HOME 目录").to_string())?;
     let agents_dir = PathBuf::from(home_dir)
-        .join(".openclaw")
-        .join("workspace")
-        .join("agents");
+        .join(s!(".openclaw"))
+        .join(s!("workspace"))
+        .join(s!("agents"));
 
     if !agents_dir.exists() {
         fs::create_dir_all(&agents_dir)
@@ -263,10 +264,10 @@ fn register_agent_in_openclaw_config(
     agent_dir: &PathBuf
 ) -> Result<(), String> {
     let home_dir = std::env::var("HOME")
-        .map_err(|_| "无法获取 HOME 目录".to_string())?;
+        .map_err(|_| s!("无法获取 HOME 目录").to_string())?;
     let config_path = PathBuf::from(home_dir)
-        .join(".openclaw")
-        .join("openclaw.json");
+        .join(s!(".openclaw"))
+        .join(s!("openclaw.json"));
 
     let config_content = fs::read_to_string(&config_path)
         .map_err(|e| format!("读取 openclaw.json 失败: {}", e))?;
@@ -285,7 +286,7 @@ fn register_agent_in_openclaw_config(
                     "name": agent_name,
                     "workspace": agent_dir.to_string_lossy(),
                     "model": {
-                        "primary": "zai/glm-4.7"
+                        "primary": s!("zai/glm-4.7")
                     }
                 });
                 list.push(new_agent);
@@ -305,10 +306,10 @@ fn register_agent_in_openclaw_config(
 /// 从 openclaw.json 配置文件中注销 Agent
 fn unregister_agent_from_openclaw_config(agent_id: &str) -> Result<(), String> {
     let home_dir = std::env::var("HOME")
-        .map_err(|_| "无法获取 HOME 目录".to_string())?;
+        .map_err(|_| s!("无法获取 HOME 目录").to_string())?;
     let config_path = PathBuf::from(home_dir)
-        .join(".openclaw")
-        .join("openclaw.json");
+        .join(s!(".openclaw"))
+        .join(s!("openclaw.json"));
 
     let config_content = fs::read_to_string(&config_path)
         .map_err(|e| format!("读取 openclaw.json 失败: {}", e))?;
@@ -443,7 +444,7 @@ pub fn check_agent_deployed(workspace_id: String) -> Result<bool, String> {
 
     let identity_md = agent_dir.join("IDENTITY.md");
     let soul_md = agent_dir.join("SOUL.md");
-    let workspace_state = agent_dir.join(".openclaw").join("workspace-state.json");
+    let workspace_state = agent_dir.join(s!(".openclaw")).join(s!("workspace-state.json"));
 
     if !identity_md.exists() || !soul_md.exists() || !workspace_state.exists() {
         let _ = fs::remove_dir_all(&agent_dir);
@@ -451,10 +452,10 @@ pub fn check_agent_deployed(workspace_id: String) -> Result<bool, String> {
     }
 
     let home_dir = std::env::var("HOME")
-        .map_err(|_| "无法获取 HOME 目录".to_string())?;
+        .map_err(|_| s!("无法获取 HOME 目录").to_string())?;
     let config_path = PathBuf::from(home_dir)
-        .join(".openclaw")
-        .join("openclaw.json");
+        .join(s!(".openclaw"))
+        .join(s!("openclaw.json"));
 
     if let Ok(config_content) = fs::read_to_string(&config_path) {
         if let Ok(config) = serde_json::from_str::<Value>(&config_content) {
@@ -524,7 +525,7 @@ pub fn deploy_agent_workspace(workspace_id: String) -> Result<String, String> {
         copy_dir(&docs_src, &docs_dst)?;
     }
 
-    let openclaw_dir = agent_dir.join(".openclaw");
+    let openclaw_dir = agent_dir.join(s!(".openclaw"));
     fs::create_dir_all(&openclaw_dir)
         .map_err(|e| format!("创建 .openclaw 目录失败: {}", e))?;
 
@@ -532,7 +533,7 @@ pub fn deploy_agent_workspace(workspace_id: String) -> Result<String, String> {
         "version": 1,
         "onboardingCompletedAt": chrono_now()
     });
-    let state_path = openclaw_dir.join("workspace-state.json");
+    let state_path = openclaw_dir.join(s!("workspace-state.json"));
     fs::write(
         &state_path,
         serde_json::to_string_pretty(&workspace_state).unwrap()

@@ -1,3 +1,4 @@
+use obfstr::obfstr as s;
 use flate2::read::GzDecoder;
 use serde::Serialize;
 use std::fs::File;
@@ -389,7 +390,7 @@ fn is_openclaw_package_root(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
         return false;
     };
-    if !name.eq_ignore_ascii_case("openclaw") {
+    if !name.eq_ignore_ascii_case(s!("openclaw")) {
         return false;
     }
 
@@ -397,7 +398,7 @@ fn is_openclaw_package_root(path: &Path) -> bool {
         .parent()
         .and_then(|value| value.file_name())
         .and_then(|value| value.to_str())
-        .map(|value| value.eq_ignore_ascii_case("node_modules"))
+        .map(|value| value.eq_ignore_ascii_case(s!("node_modules")))
         .unwrap_or(false);
 
     parent_is_node_modules && path.join("package.json").is_file()
@@ -483,10 +484,11 @@ fn prefer_windows_command_wrapper(candidate: &Path) -> PathBuf {
 }
 
 fn detect_openclaw_bin_path() -> Option<PathBuf> {
+    s! { let locate_cmd_win = "where openclaw"; let locate_cmd_unix = "command -v openclaw || which openclaw"; }
     let locate_cmd = if cfg!(target_os = "windows") {
-        "where openclaw"
+        locate_cmd_win
     } else {
-        "command -v openclaw || which openclaw"
+        locate_cmd_unix
     };
     let output = run_shell(&with_fnm_env(locate_cmd)).ok()?;
     for line in output.lines() {

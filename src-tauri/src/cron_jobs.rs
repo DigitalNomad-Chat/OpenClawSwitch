@@ -3,6 +3,7 @@
 // 提供定时任务的读取、创建、更新、删除功能
 // ============================================================================
 
+use obfstr::obfstr as s;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -102,9 +103,11 @@ fn chrono_now() -> String {
 
 /// 获取 Cron jobs 文件路径
 fn get_cron_jobs_path() -> Result<PathBuf, String> {
-    let home_dir = std::env::var("HOME")
-        .map_err(|_| "无法获取 HOME 目录".to_string())?;
-    Ok(PathBuf::from(home_dir).join(".openclaw/cron/jobs.json"))
+    s! { let home_env = "HOME"; }
+    let home_dir = std::env::var(home_env)
+        .map_err(|_| s!("无法获取 HOME 目录").to_string())?;
+    s! { let openclaw_dir = ".openclaw/cron/jobs.json"; }
+    Ok(PathBuf::from(home_dir).join(openclaw_dir))
 }
 
 /// 读取 Cron jobs 清单
@@ -206,10 +209,13 @@ pub fn create_cron_job(
 
     let parts: Vec<&str> = schedule_expr.split_whitespace().collect();
     if parts.len() != 5 {
-        return Err("Cron 表达式格式错误，应为 5 段式".to_string());
+        return Err(s!("Cron 表达式格式错误，应为 5 段式").to_string());
     }
 
     let now = chrono_now().parse::<i64>().unwrap_or(0);
+
+    s! { let cron_kind = "cron"; }
+    s! { let agent_turn_kind = "agentTurn"; }
 
     let job = CronJob {
         id: id.clone(),
@@ -221,14 +227,14 @@ pub fn create_cron_job(
         created_at_ms: now,
         updated_at_ms: now,
         schedule: CronSchedule {
-            kind: "cron".to_string(),
+            kind: cron_kind.to_string(),
             expr: schedule_expr,
             tz: timezone,
         },
         session_target,
         wake_mode,
         payload: CronPayload {
-            kind: "agentTurn".to_string(),
+            kind: agent_turn_kind.to_string(),
             message,
         },
         delivery: Some(CronDelivery {
@@ -279,7 +285,7 @@ pub fn update_cron_job(
 
     let parts: Vec<&str> = schedule_expr.split_whitespace().collect();
     if parts.len() != 5 {
-        return Err("Cron 表达式格式错误，应为 5 段式".to_string());
+        return Err(s!("Cron 表达式格式错误，应为 5 段式").to_string());
     }
 
     let now = chrono_now().parse::<i64>().unwrap_or(0);

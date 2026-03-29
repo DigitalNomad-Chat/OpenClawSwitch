@@ -3,6 +3,7 @@
 // 独立于 OpenClaw 的 AI 配置系统
 // ============================================================================
 
+use obfstr::obfstr as s;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
@@ -55,8 +56,10 @@ impl Default for LLMConfig {
 
 /// 获取 LLM 配置文件路径
 fn get_llm_config_path() -> Result<PathBuf, String> {
-    let home_dir = dirs::home_dir().ok_or("无法获取用户主目录".to_string())?;
-    Ok(home_dir.join(".openclawswitch").join("llm-config.json"))
+    let home_dir = dirs::home_dir().ok_or(s!("无法获取用户主目录").to_string())?;
+    s! { let config_dir = ".openclawswitch"; }
+    s! { let config_file = "llm-config.json"; }
+    Ok(home_dir.join(config_dir).join(config_file))
 }
 
 /// 确保配置目录存在
@@ -195,7 +198,7 @@ pub fn llm_get_active_config() -> Result<Value, String> {
             "workspace": config.workspace,
         }))
     } else {
-        Err("未配置活跃 Provider".to_string())
+        Err(s!("未配置活跃 Provider").to_string())
     }
 }
 
@@ -211,43 +214,68 @@ pub async fn llm_test_connection(
 
     let start = Instant::now();
 
+    s! { let anthropic = "anthropic"; }
+    s! { let openai = "openai"; }
+    s! { let openai_response = "openai-response"; }
+    s! { let v1_messages = "/v1/messages"; }
+    s! { let chat_completions = "/chat/completions"; }
+    s! { let x_api_key = "x-api-key"; }
+    s! { let anthropic_version = "anthropic-version"; }
+    s! { let ver_2023_06_01 = "2023-06-01"; }
+    s! { let content_type = "content-type"; }
+    s! { let application_json = "application/json"; }
+    s! { let authorization = "authorization"; }
+    s! { let bearer = "Bearer "; }
+    s! { let max_tokens = "max_tokens"; }
+    s! { let messages = "messages"; }
+    s! { let role = "role"; }
+    s! { let content = "content"; }
+    s! { let user = "user"; }
+    s! { let hi = "Hi"; }
+    s! { let unsup_msg = "不支持的 API 类型: "; }
+    s! { let http_err = "HTTP "; }
+    s! { let colon_space = ": "; }
+    s! { let success = "success"; }
+    s! { let latency = "latency"; }
+    s! { let error = "error"; }
+
     // 构建请求
     let client = reqwest::Client::new();
 
     let response = match api.as_str() {
-        "anthropic" => {
-            client.post(format!("{}/v1/messages", base_url))
-                .header("x-api-key", &api_key)
-                .header("anthropic-version", "2023-06-01")
-                .header("content-type", "application/json")
+        a if a == anthropic => {
+            client.post(format!("{}{}", base_url, v1_messages))
+                .header(x_api_key, &api_key)
+                .header(anthropic_version, ver_2023_06_01)
+                .header(content_type, application_json)
                 .json(&serde_json::json!({
                     "model": model,
-                    "max_tokens": 10,
-                    "messages": [{
-                        "role": "user",
-                        "content": "Hi"
+                    max_tokens: 10,
+                    messages: [{
+                        role: user,
+                        content: hi
                     }]
                 }))
                 .send()
                 .await
         },
-        "openai" | "openai-response" => {
-            client.post(format!("{}/chat/completions", base_url))
-                .header("authorization", format!("Bearer {}", api_key))
-                .header("content-type", "application/json")
+        a if a == openai || a == openai_response => {
+            client.post(format!("{}{}", base_url, chat_completions))
+                .header(authorization, format!("{}{}", bearer, api_key))
+                .header(content_type, application_json)
                 .json(&serde_json::json!({
                     "model": model,
-                    "max_tokens": 10,
-                    "messages": [{
-                        "role": "user",
-                        "content": "Hi"
+                    max_tokens: 10,
+                    messages: [{
+                        role: user,
+                        content: hi
                     }]
                 }))
                 .send()
                 .await
         },
         _ => {
-            return Err(format!("不支持的 API 类型: {}", api));
+            return Err(format!("{}{}", unsup_msg, api));
         }
     };
 
@@ -258,23 +286,23 @@ pub async fn llm_test_connection(
             let status = resp.status();
             if status.is_success() {
                 Ok(serde_json::json!({
-                    "success": true,
-                    "latency": latency_ms,
+                    success: true,
+                    latency: latency_ms,
                 }))
             } else {
-                let error_text = resp.text().await.unwrap_or_default();
+                let _error_text = resp.text().await.unwrap_or_default();
                 Ok(serde_json::json!({
-                    "success": false,
-                    "error": format!("HTTP {}: {}", status.as_u16(), error_text),
-                    "latency": latency_ms,
+                    success: false,
+                    error: format!("{}{}{}", http_err, status.as_u16(), colon_space),
+                    latency: latency_ms,
                 }))
             }
         }
         Err(e) => {
             Ok(serde_json::json!({
-                "success": false,
-                "error": e.to_string(),
-                "latency": latency_ms,
+                success: false,
+                error: e.to_string(),
+                latency: latency_ms,
             }))
         }
     }

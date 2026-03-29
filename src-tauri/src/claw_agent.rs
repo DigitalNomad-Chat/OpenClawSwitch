@@ -3,6 +3,7 @@ use std::process::{Child, Command};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use serde::Serialize;
+use obfstr::obfstr as s;
 
 /// LLM 配置（用于启动 Agent）
 #[derive(Debug, Clone)]
@@ -73,15 +74,19 @@ impl ClawAgent {
 
         // 3. 构建命令 - 使用 sh -c 绕过 macOS Gatekeeper 限制
         let exe_path_str = exe_path.to_string_lossy().to_string();
-        let mut args_str = format!("--agent --port {}", self.port.to_string());
+        let mut args_str = format!("{} --port {}", s!("--agent"), self.port.to_string());
 
         // 添加 LLM 配置（优先于配置文件）
         let final_llm_config = llm_config.or_else(|| self.llm_config.clone());
         if let Some(ref llm) = final_llm_config {
-            args_str.push_str(&format!(" --api {} --model '{}' --api-key '{}' --base-url '{}'",
-                llm.api, llm.model, llm.api_key, llm.base_url));
+            s! { let flag_api = "--api"; let flag_model = "--model"; let flag_api_key = "--api-key"; let flag_base_url = "--base-url"; let flag_workspace = "--workspace"; }
+            args_str.push_str(&format!(" {} {} '{}' {} '{}' {} '{} '{}'",
+                flag_api, llm.api,
+                flag_model, llm.model,
+                flag_api_key, llm.api_key,
+                flag_base_url, llm.base_url));
             if !llm.workspace.is_empty() {
-                args_str.push_str(&format!(" --workspace '{}'", llm.workspace));
+                args_str.push_str(&format!(" {} '{}'", flag_workspace, llm.workspace));
             }
         }
 
@@ -89,7 +94,7 @@ impl ClawAgent {
         let full_cmd = if final_llm_config.is_none() {
             if let Some(config_path) = &self.config_path {
                 if config_path.exists() {
-                    format!("{} --config {}", args_str, config_path.to_string_lossy())
+                    format!("{} {} {}", args_str, s!("--config"), config_path.to_string_lossy())
                 } else {
                     args_str
                 }
@@ -102,8 +107,8 @@ impl ClawAgent {
 
         eprintln!("[ClawAgent] 执行命令: sh -c '{} {}'", exe_path_str, full_cmd);
 
-        let mut cmd = Command::new("sh");
-        cmd.arg("-c")
+        let mut cmd = Command::new(s!("sh"));
+        cmd.arg(s!("-c"))
            .arg(format!("{} {}", exe_path_str, full_cmd));
 
         // 4. 启动进程
@@ -129,7 +134,7 @@ impl ClawAgent {
                 .map_err(|e| format!("停止 Claw Agent 失败: {}", e))?;
             Ok(())
         } else {
-            Err("Claw Agent 未运行".to_string())
+            Err(s!("Claw Agent 未运行").to_string())
         }
     }
 
@@ -171,7 +176,7 @@ impl ClawAgent {
                 return Ok(port);
             }
         }
-        Err("无法获取可用端口".to_string())
+        Err(s!("无法获取可用端口").to_string())
     }
 
     /// 等待服务就绪

@@ -1,6 +1,7 @@
 // Bindings 配置管理模块
 // 用于管理 Agent 与消息渠道的绑定关系
 
+use obfstr::obfstr as s;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -121,19 +122,19 @@ pub fn add_binding(mut config: Value, request: BindingRequest) -> Result<Value, 
 
     // 验证必填字段
     if request.agent_id.is_empty() {
-        return Err("Agent ID 不能为空".to_string());
+        return Err(s!("Agent ID 不能为空").to_string());
     }
     if request.channel.is_empty() {
-        return Err("渠道不能为空".to_string());
+        return Err(s!("渠道不能为空").to_string());
     }
 
     // 根据路由模式验证
     let mode = request.routing_mode.as_deref().unwrap_or("peer");
     if (mode == "peer" || mode == "both") && request.peer_id.is_empty() {
-        return Err("Peer ID 不能为空".to_string());
+        return Err(s!("Peer ID 不能为空").to_string());
     }
     if (mode == "accountId" || mode == "both") && request.account_id.as_ref().map_or(true, |s| s.is_empty()) {
-        return Err("账号 ID 不能为空".to_string());
+        return Err(s!("账号 ID 不能为空").to_string());
     }
 
     // 根据路由模式构建 match 对象（accountId 和 peer 都在 match 内部）
@@ -182,7 +183,7 @@ pub fn remove_binding(mut config: Value, index: usize) -> Result<Value, String> 
         }
         bindings.remove(index);
     } else {
-        return Err("配置文件中没有 bindings 数组".to_string());
+        return Err(s!("配置文件中没有 bindings 数组").to_string());
     }
 
     Ok(config)
@@ -193,19 +194,19 @@ pub fn remove_binding(mut config: Value, index: usize) -> Result<Value, String> 
 pub fn update_binding(mut config: Value, index: usize, request: BindingRequest) -> Result<Value, String> {
     // 验证必填字段
     if request.agent_id.is_empty() {
-        return Err("Agent ID 不能为空".to_string());
+        return Err(s!("Agent ID 不能为空").to_string());
     }
     if request.channel.is_empty() {
-        return Err("渠道不能为空".to_string());
+        return Err(s!("渠道不能为空").to_string());
     }
 
     // 根据路由模式验证
     let mode = request.routing_mode.as_deref().unwrap_or("peer");
     if (mode == "peer" || mode == "both") && request.peer_id.is_empty() {
-        return Err("Peer ID 不能为空".to_string());
+        return Err(s!("Peer ID 不能为空").to_string());
     }
     if (mode == "accountId" || mode == "both") && request.account_id.as_ref().map_or(true, |s| s.is_empty()) {
-        return Err("账号 ID 不能为空".to_string());
+        return Err(s!("账号 ID 不能为空").to_string());
     }
 
     if let Some(bindings) = config.get_mut("bindings").and_then(|b| b.as_array_mut()) {
@@ -245,7 +246,7 @@ pub fn update_binding(mut config: Value, index: usize, request: BindingRequest) 
 
         bindings[index] = updated_binding;
     } else {
-        return Err("配置文件中没有 bindings 数组".to_string());
+        return Err(s!("配置文件中没有 bindings 数组").to_string());
     }
 
     Ok(config)
@@ -254,12 +255,12 @@ pub fn update_binding(mut config: Value, index: usize, request: BindingRequest) 
 /// 获取可用的 Agent 列表（用于绑定选择）
 #[tauri::command]
 pub fn get_agent_options(config: Value) -> Result<Vec<(String, String)>, String> {
-    let mut agents = vec![("default".to_string(), "default".to_string())];
+    let mut agents = vec![(s!("default").to_string(), s!("default").to_string())];
 
     // 从 agents.defaults 获取默认 agent
     if let Some(defaults) = config.get("agents").and_then(|a| a.get("defaults")) {
         let _workspace = defaults.get("workspace").and_then(|w| w.as_str());
-        agents.push(("main".to_string(), "运营管理总监".to_string()));
+        agents.push((s!("main").to_string(), s!("运营管理总监").to_string()));
     }
 
     // 从 agents.list 获取所有 agents
@@ -287,8 +288,8 @@ pub fn get_agent_options(config: Value) -> Result<Vec<(String, String)>, String>
 #[tauri::command]
 pub fn get_channel_accounts(channel_id: String) -> Result<Vec<AccountOption>, String> {
     // 调用 openclaw channels list --json 获取真实账号列表
-    let output = std::process::Command::new("openclaw")
-        .args(["channels", "list", "--json"])
+    let output = std::process::Command::new(s!("openclaw"))
+        .args([s!("channels"), s!("list"), s!("--json")])
         .output()
         .map_err(|e| format!("执行 openclaw 命令失败: {}", e))?;
 
@@ -302,7 +303,7 @@ pub fn get_channel_accounts(channel_id: String) -> Result<Vec<AccountOption>, St
     let json_str = stdout.trim();
 
     // 跳过 ANSI 颜色代码，找到 JSON 开始位置
-    let json_start = json_str.find('{').ok_or("无法解析 openclaw 输出")?;
+    let json_start = json_str.find('{').ok_or_else(|| s!("无法解析 openclaw 输出").to_string())?;
     let json_str = &json_str[json_start..];
 
     let data: serde_json::Value = serde_json::from_str(json_str)
@@ -313,8 +314,9 @@ pub fn get_channel_accounts(channel_id: String) -> Result<Vec<AccountOption>, St
     let accounts = match chat {
         Some(chat_obj) => {
             // 渠道 ID 可能需要转换（如 dingtalk 可能叫 dingtalk-connector）
-            let channel_key = match channel_id.as_str() {
-                "dingtalk" => "dingtalk-connector",
+            s! { let channel_dingtalk = "dingtalk-connector"; }
+            let channel_key: &str = match channel_id.as_str() {
+                "dingtalk" => channel_dingtalk,
                 other => other,
             };
 
@@ -326,7 +328,7 @@ pub fn get_channel_accounts(channel_id: String) -> Result<Vec<AccountOption>, St
                         .map(|account_id| {
                             // 生成显示名称
                             let name = match account_id {
-                                "default" => "默认账号".to_string(),
+                                "default" => s!("默认账号").to_string(),
                                 other => format!("{} ({})", capitalize(other), other),
                             };
                             AccountOption {
@@ -496,7 +498,7 @@ pub fn claw_start_agent(
         .map_err(|e| format!("获取锁失败: {}", e))?;
 
     let manager = guard.as_ref()
-        .ok_or("管理器未初始化".to_string())?;
+        .ok_or(s!("管理器未初始化").to_string())?;
 
     // 如果提供了 LLM 配置，构建配置对象
     let llm_config = if api.is_some() && api_key.is_some() && model.is_some() {
@@ -512,7 +514,7 @@ pub fn claw_start_agent(
     };
 
     manager.start_with_llm_config(llm_config)?;
-    Ok("Claw Agent 启动成功".to_string())
+    Ok(s!("Claw Agent 启动成功").to_string())
 }
 
 /// 停止 Claw Agent
@@ -522,10 +524,10 @@ pub fn claw_stop_agent() -> Result<String, String> {
         .map_err(|e| format!("获取锁失败: {}", e))?;
 
     let manager = guard.as_ref()
-        .ok_or("Claw Agent 未初始化".to_string())?;
+        .ok_or(s!("Claw Agent 未初始化").to_string())?;
 
     manager.stop()?;
-    Ok("Claw Agent 已停止".to_string())
+    Ok(s!("Claw Agent 已停止").to_string())
 }
 
 /// 获取 Claw Agent 状态
@@ -535,7 +537,7 @@ pub fn claw_get_status() -> Result<claw_agent::ClawAgentStatus, String> {
         .map_err(|e| format!("获取锁失败: {}", e))?;
 
     let manager = guard.as_ref()
-        .ok_or("Claw Agent 未初始化".to_string())?;
+        .ok_or(s!("Claw Agent 未初始化").to_string())?;
 
     manager.status()
 }
@@ -547,7 +549,7 @@ pub fn claw_get_port() -> Result<u16, String> {
         .map_err(|e| format!("获取锁失败: {}", e))?;
 
     let manager = guard.as_ref()
-        .ok_or("Claw Agent 未初始化".to_string())?;
+        .ok_or(s!("Claw Agent 未初始化").to_string())?;
 
     manager.port()
 }

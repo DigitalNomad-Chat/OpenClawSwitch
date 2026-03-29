@@ -5,6 +5,7 @@
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
+use obfstr::obfstr as s;
 
 /// 读取 OpenClaw 配置
 #[tauri::command]
@@ -253,7 +254,7 @@ pub fn claw_add_fallback_model(model: String) -> Result<Value, String> {
 /// 获取 OpenClaw 配置文件路径
 fn get_openclaw_config_path() -> Result<PathBuf, String> {
     let home_dir = dirs::home_dir().ok_or("无法获取用户主目录".to_string())?;
-    Ok(home_dir.join(".openclaw").join("openclaw.json"))
+    Ok(home_dir.join(s!(".openclaw")).join(s!("openclaw.json")))
 }
 
 /// 备份配置文件
@@ -274,7 +275,7 @@ fn backup_config(config_path: &PathBuf) -> Result<(), String> {
         .map_err(|e| format!("获取时间戳失败: {}", e))?
         .as_secs();
 
-    let backup_name = format!("openclaw-{}.json", timestamp);
+    let backup_name = format!("{}-{}.{}", s!("openclaw"), timestamp, s!("json"));
     let backup_path = backup_dir.join(backup_name);
 
     fs::copy(config_path, &backup_path)

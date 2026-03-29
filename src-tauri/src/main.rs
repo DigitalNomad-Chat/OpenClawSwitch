@@ -8,6 +8,7 @@ use std::net::{TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
+use obfstr::obfstr as s;
 
 mod ssh;
 mod ssh_profiles;
@@ -93,25 +94,26 @@ struct ModelsListResponse {
 /// 获取默认的 OpenClaw 配置目录
 fn get_default_config_dir() -> Result<PathBuf, String> {
     let home_dir = dirs::home_dir().ok_or("无法获取用户主目录")?;
-    Ok(home_dir.join(".openclaw"))
+    Ok(home_dir.join(s!(".openclaw")))
 }
 
 /// 在指定目录中检测配置文件
 fn detect_config_file(dir_path: &PathBuf) -> Result<PathBuf, String> {
     // 优先级：openclaw.json > clawdbot.json
-    let openclaw_path = dir_path.join("openclaw.json");
+    let openclaw_path = dir_path.join(s!("openclaw.json"));
     if openclaw_path.exists() {
         return Ok(openclaw_path);
     }
 
-    let clawdbot_path = dir_path.join("clawdbot.json");
+    let clawdbot_path = dir_path.join(s!("clawdbot.json"));
     if clawdbot_path.exists() {
         return Ok(clawdbot_path);
     }
 
     Err(format!(
-        "在目录 {} 中未找到 openclaw.json 或 clawdbot.json",
-        dir_path.display()
+        "{}{}",
+        dir_path.display(),
+        s!(" 中未找到配置文件")
     ))
 }
 
@@ -757,7 +759,7 @@ fn restart_gateway() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
         Command::new("cmd")
-            .args(["/c", "openclaw", "gateway", "restart"])
+            .args(["/c", s!("openclaw"), "gateway", "restart"])
             .spawn()
             .map_err(|e| format!("执行命令失败: {}", e))?;
     }
@@ -765,7 +767,7 @@ fn restart_gateway() -> Result<String, String> {
     #[cfg(not(target_os = "windows"))]
     {
         Command::new("sh")
-            .args(["-c", "openclaw gateway restart"])
+            .args(["-c", s!("openclaw gateway restart")])
             .spawn()
             .map_err(|e| format!("执行命令失败: {}", e))?;
     }
@@ -776,7 +778,7 @@ fn restart_gateway() -> Result<String, String> {
 /// 本地健康检查（127.0.0.1:18789）
 #[tauri::command]
 fn health_check_gateway() -> Result<bool, String> {
-    let mut addrs = "127.0.0.1:18789"
+    let mut addrs = s!("127.0.0.1:18789")
         .to_socket_addrs()
         .map_err(|e| format!("解析地址失败: {}", e))?;
     let addr = addrs.next().ok_or("无法解析网关地址".to_string())?;
@@ -791,7 +793,7 @@ fn open_tui() -> Result<(), String> {
     {
         // Windows: 使用 start 命令打开新的 cmd 窗口并执行 openclaw tui
         Command::new("cmd")
-            .args(["/c", "start", "cmd", "/k", "openclaw tui"])
+            .args(["/c", "start", "cmd", "/k", s!("openclaw tui")])
             .spawn()
             .map_err(|e| format!("打开终端失败: {}", e))?;
     }
@@ -819,8 +821,9 @@ fn open_tui() -> Result<(), String> {
             .args([
                 "-e",
                 &format!(
-                    "tell application \"Terminal\" to do script \"source {} && openclaw tui\"",
-                    config_file
+                    "tell application \"Terminal\" to do script \"source {} && {}\"",
+                    config_file,
+                    s!("openclaw tui")
                 ),
                 "-e",
                 "tell application \"Terminal\" to activate",
@@ -832,11 +835,16 @@ fn open_tui() -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         // 尝试多种终端模拟器
+        s! {
+            let cmd_oc = "openclaw";
+            let cmd_tui = "tui";
+            let cmd_oc_tui = "openclaw tui";
+        }
         let terminals = [
-            ("gnome-terminal", vec!["--", "openclaw", "tui"]),
-            ("konsole", vec!["-e", "openclaw", "tui"]),
-            ("xfce4-terminal", vec!["-e", "openclaw tui"]),
-            ("xterm", vec!["-e", "openclaw", "tui"]),
+            ("gnome-terminal", vec!["--", cmd_oc, cmd_tui]),
+            ("konsole", vec!["-e", cmd_oc, cmd_tui]),
+            ("xfce4-terminal", vec!["-e", cmd_oc_tui]),
+            ("xterm", vec!["-e", cmd_oc_tui]),
         ];
 
         let mut success = false;

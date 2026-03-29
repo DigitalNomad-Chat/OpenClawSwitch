@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
+use obfstr::obfstr as s;
 
 // ============================================================================
 // 类型定义
@@ -28,8 +29,8 @@ pub struct AgentInfo {
 
 fn get_openclaw_config_path() -> Result<PathBuf, String> {
     let home_dir = std::env::var("HOME")
-        .map_err(|_| "无法获取 HOME 目录".to_string())?;
-    Ok(PathBuf::from(home_dir).join(".openclaw").join("openclaw.json"))
+        .map_err(|_| s!("无法获取 HOME 目录").to_string())?;
+    Ok(PathBuf::from(home_dir).join(s!(".openclaw")).join(s!("openclaw.json")))
 }
 
 // ============================================================================
