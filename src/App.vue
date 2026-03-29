@@ -109,6 +109,7 @@ const configFilePath = ref('')
 const uninstallOpenClawStep = ref<OpenClawUninstallStep | null>(null)
 const uninstallOpenClawInput = ref('')
 const uninstallOpenClawLoading = ref(false)
+const showAgreementModal = ref(false)
 
 const envStatus = ref<EnvironmentStatus | null>(null)
 const configLoaded = ref(false)
@@ -1852,6 +1853,16 @@ onUnmounted(() => {
                   {{ openClawUninstallActionState.reason }}
                 </p>
               </section>
+
+              <p class="mt-4 text-center">
+                <button
+                  class="text-xs border-none bg-transparent p-0 cursor-pointer hover:opacity-70"
+                  style="color: var(--oc-text-quiet);"
+                  @click="showAgreementModal = true"
+                >
+                  User Agreement
+                </button>
+              </p>
             </div>
           </div>
         </div>
@@ -2015,6 +2026,93 @@ onUnmounted(() => {
         </div>
       </Card>
     </div>
+
+    <!-- User Agreement Modal -->
+    <div
+      v-if="showAgreementModal"
+      class="oc-modal-overlay"
+      @click.self="showAgreementModal = false"
+    >
+      <Card class="oc-modal-card w-full max-w-2xl p-0 flex flex-col">
+        <!-- Fixed header -->
+        <div class="flex-shrink-0 px-6 pt-5 pb-3 border-b" style="border-color: var(--oc-card-border);">
+          <h3 class="text-lg font-semibold" style="color: var(--oc-text-primary);">User Agreement</h3>
+          <p class="mt-0.5 text-xs" style="color: var(--oc-text-muted);">Last updated: March 2026</p>
+        </div>
+
+        <!-- Scrollable body -->
+        <div class="flex-1 overflow-y-auto px-6 py-4 text-sm leading-7" style="color: var(--oc-text-secondary);">
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">1. Acceptance of Terms</h4>
+          <p class="mb-4">By accessing, installing, or using this software ("Clawlite"), you acknowledge that you have read, understood, and agree to be bound by the terms and conditions of this User Agreement. If you do not agree to these terms, you must discontinue use of the software immediately and remove it from your device.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">2. License Grant</h4>
+          <p class="mb-4">Subject to your compliance with this Agreement, you are granted a limited, non-exclusive, non-transferable, revocable license to install and use Clawlite for personal, non-commercial purposes. No rights to sublicense, distribute, or modify the software are granted under this Agreement except as explicitly permitted by applicable law.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">3. Restrictions on Use</h4>
+          <p class="mb-4">You shall not: (a) reverse engineer, decompile, disassemble, or otherwise attempt to discover the source code of the software; (b) use the software for any unlawful purpose or in violation of any applicable regulations; (c) remove, alter, or obscure any proprietary notices contained in the software; (d) use the software to generate, distribute, or facilitate content that is illegal, harmful, threatening, abusive, or otherwise objectionable.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">4. User Responsibilities</h4>
+          <p class="mb-4">You are solely responsible for all activities conducted through the software using your account or device. You agree to use the software in a manner that complies with all applicable local, state, national, and international laws and regulations. You are responsible for maintaining the security of your system and any API keys, credentials, or configuration data used in conjunction with the software.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">5. Privacy and Data</h4>
+          <p class="mb-4">Clawlite is designed to operate locally on your device and does not collect, transmit, or store personal data on external servers operated by the developer. However, the software interfaces with third-party AI services whose own privacy policies govern data handling. You acknowledge that any data sent to such services is subject to those third-party terms and privacy policies.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">6. Third-Party Services</h4>
+          <p class="mb-4">The software may integrate with or provide access to third-party services, APIs, or software components ("Third-Party Services"). These Third-Party Services are governed by their own terms of service and privacy policies. The developer of Clawlite makes no representations or warranties regarding Third-Party Services and shall not be liable for any damages arising from your use of them.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">7. Intellectual Property</h4>
+          <p class="mb-4">All intellectual property rights in Clawlite, including but not limited to copyrights, trademarks, and trade secrets, are and shall remain the exclusive property of the developer. This Agreement does not transfer any ownership rights to you. You may not use any trademarks, service marks, or logos associated with Clawlite without prior written consent.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">8. Disclaimer of Warranties</h4>
+          <p class="mb-4">THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE. TO THE FULLEST EXTENT PERMITTED BY LAW, THE DEVELOPER DISCLAIMS ALL WARRANTIES, INCLUDING IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. THE DEVELOPER DOES NOT WARRANT THAT THE SOFTWARE WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE OF HARMFUL COMPONENTS.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">9. Software Development Basis</h4>
+          <p class="mb-4">This software is based on <span style="color: var(--oc-text-muted);">OpenClawSwitch</span> (<span style="color: var(--oc-text-muted);">Copyright &copy; 2024 RongleCat</span>) licensed under the MIT License, whose terms are reproduced below:</p>
+          <blockquote class="mb-4 pl-3 border-l text-xs leading-5" style="color: var(--oc-text-muted); border-color: var(--oc-card-border);">Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:<br><br>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.<br><br>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</blockquote>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">10. Limitation of Liability</h4>
+          <p class="mb-4">TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE DEVELOPER BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, BUSINESS OPPORTUNITIES, OR GOODWILL, ARISING OUT OF OR IN CONNECTION WITH YOUR USE OF OR INABILITY TO USE THE SOFTWARE, REGARDLESS OF THE CAUSE OF ACTION OR THE THEORY OF LIABILITY, EVEN IF THE DEVELOPER HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">11. Indemnification</h4>
+          <p class="mb-4">You agree to indemnify, defend, and hold harmless the developer and its affiliates from and against any claims, damages, losses, liabilities, costs, and expenses (including reasonable attorney fees) arising out of or in connection with your use of the software, your violation of this Agreement, or your violation of any rights of a third party.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">12. Term and Termination</h4>
+          <p class="mb-4">This Agreement is effective from the date you first use the software and continues until terminated. The developer may terminate this Agreement at any time for any reason or no reason, with or without notice. Upon termination, you must cease all use of the software and remove it from your device. Provisions that by their nature should survive termination shall remain in effect.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">13. Updates and Modifications</h4>
+          <p class="mb-4">The developer reserves the right to update, modify, or discontinue the software at any time without prior notice. The developer may also update this Agreement from time to time. Your continued use of the software after any such changes constitutes your acceptance of the updated Agreement. It is your responsibility to review this Agreement periodically for changes.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">14. Export Compliance</h4>
+          <p class="mb-4">You acknowledge that the software may be subject to export control laws and regulations of your jurisdiction. You represent and warrant that you are not located in any country subject to a U.S. government embargo, or designated by the U.S. government as a "terrorist supporting" country, and that you will not use the software for any purpose prohibited by applicable export laws.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">15. User-Generated Content</h4>
+          <p class="mb-4">Any content, prompts, configurations, or data you create or input into the software ("User Content") remains your sole responsibility. You retain ownership of your User Content but grant the developer a limited license to process such content as necessary for the software to function. You represent that your User Content does not infringe upon the rights of any third party.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">16. Security</h4>
+          <p class="mb-4">While the developer employs reasonable measures to help ensure the security of the software, no system is completely secure. You acknowledge that you are responsible for implementing appropriate security measures for your system and for your use of the software. The developer is not responsible for any unauthorized access to your system, data, or API credentials.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">17. Governing Law</h4>
+          <p class="mb-4">This Agreement shall be governed by and construed in accordance with the laws of the jurisdiction in which the developer is located, without regard to its conflict of law principles. Any disputes arising out of or in connection with this Agreement shall be resolved through good-faith negotiation or, if necessary, in the courts of competent jurisdiction.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">18. Severability</h4>
+          <p class="mb-4">If any provision of this Agreement is found to be invalid, illegal, or unenforceable, such provision shall be modified to the minimum extent necessary to make it valid and enforceable, or if modification is not possible, shall be severed from this Agreement. The remaining provisions shall continue in full force and effect and shall not be affected by the invalidity of any such provision.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">19. Entire Agreement</h4>
+          <p class="mb-4">This Agreement, together with any applicable open-source licenses for included components, constitutes the entire agreement between you and the developer regarding the use of the software, and supersedes all prior or contemporaneous understandings, agreements, representations, and warranties, whether written or oral, with respect to the software.</p>
+
+          <h4 class="mb-1 text-sm font-semibold" style="color: var(--oc-text-primary);">20. Contact</h4>
+          <p>For questions or concerns regarding this Agreement, please contact the developer through the official project channels. The developer will make reasonable efforts to respond to inquiries in a timely manner.</p>
+
+        </div>
+
+        <!-- Fixed footer -->
+        <div class="flex-shrink-0 px-6 py-4 border-t flex justify-end" style="border-color: var(--oc-card-border);">
+          <Button variant="outline" @click="showAgreementModal = false">Close</Button>
+        </div>
+      </Card>
+    </div>
+
     <Toast v-if="toast" :type="toast.type" :message="toast.message" @close="closeToast" />
 
     <div v-if="loading" class="fixed inset-0 z-[110] flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
