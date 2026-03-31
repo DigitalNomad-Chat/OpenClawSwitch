@@ -3,6 +3,7 @@ import { ref, computed, inject, type Ref } from 'vue'
 import { Play, Pause, AlertCircle, Edit2, Trash2, Power, PowerOff, ChevronDown, ChevronRight, Copy } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
 import { resolveDeliveryTarget } from '@/utils/bindingResolver'
+import { describeSchedule } from '@/utils/cronParser'
 import type { BindingInfo, AgentInfo } from '@/types/binding'
 import type { CronJob } from '@/types/cron'
 
@@ -105,6 +106,11 @@ const deliveryDisplay = computed(() => {
   return resolveDeliveryTarget(delivery.channel, delivery.to, bindingsValue.value, agentsValue.value)
 })
 
+/** 调度表达式的人类可读描述 */
+const scheduleDisplay = computed(() => {
+  return describeSchedule(props.job.schedule.expr, props.job.schedule.tz)
+})
+
 // ============================================================================
 // Actions
 // ============================================================================
@@ -191,12 +197,12 @@ async function copyErrorInfo(event: Event) {
         <!-- 详细信息网格 -->
         <div class="job-details-grid">
           <div class="detail-item">
-            <span class="detail-label">Agent:</span>
+            <span class="detail-label">执行Agent:</span>
             <span class="detail-value">{{ job.agentId || '未配置' }}</span>
           </div>
           <div class="detail-item">
             <span class="detail-label">调度:</span>
-            <span class="detail-value">{{ job.schedule.expr }}</span>
+            <span class="detail-value" :title="job.schedule.expr">{{ scheduleDisplay }}</span>
           </div>
           <div class="detail-item">
             <span class="detail-label">时区:</span>

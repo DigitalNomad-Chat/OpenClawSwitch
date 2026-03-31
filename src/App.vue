@@ -648,10 +648,11 @@ const syncConfigSignals = async () => {
         j.state?.lastRunStatus === 'error' || (j.state?.consecutiveErrors || 0) > 0
       ).length
     } else {
-      const jobs = await invoke<any[]>('get_cron_jobs')
-      totalJobs.value = jobs.length
-      enabledJobs.value = jobs.filter((j: any) => j.enabled).length
-      jobsWithErrors.value = jobs.filter((j: any) =>
+      const result = await invoke<{ jobs: any[]; warnings: any[]; repairedCount: number }>('get_cron_jobs')
+      const jobList = result.jobs ?? []
+      totalJobs.value = jobList.length
+      enabledJobs.value = jobList.filter((j: any) => j.enabled).length
+      jobsWithErrors.value = jobList.filter((j: any) =>
         j.state?.lastRunStatus === 'error' || (j.state?.consecutiveErrors || 0) > 0
       ).length
     }

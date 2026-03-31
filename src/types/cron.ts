@@ -148,6 +148,54 @@ export interface CronJobStats {
   withErrors: number
 }
 
+// ============================================================================
+// 调度频率类型
+// ============================================================================
+
+/** 调度频率类型 */
+export type ScheduleFreq = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom'
+
+/** 每小时配置 */
+export interface HourlyConfig {
+  minute: number
+}
+
+/** 每天配置 */
+export interface DailyConfig {
+  hour: number
+  minute: number
+}
+
+/** 每周配置 */
+export interface WeeklyConfig {
+  days: number[]
+  hour: number
+  minute: number
+}
+
+/** 每月配置 */
+export interface MonthlyConfig {
+  day: number | 'L'
+  hour: number
+  minute: number
+}
+
+/** 调度配置联合类型 */
+export type ScheduleConfig =
+  | { freq: 'hourly'; config: HourlyConfig }
+  | { freq: 'daily'; config: DailyConfig }
+  | { freq: 'weekly'; config: WeeklyConfig }
+  | { freq: 'monthly'; config: MonthlyConfig }
+  | { freq: 'custom'; expr: string }
+
+/** 表达式解析结果 */
+export interface ParsedSchedule {
+  freq: ScheduleFreq
+  config: ScheduleConfig
+  description: string
+  isNonStandard: boolean
+}
+
 /**
  * Cron 表达式预设模板
  */
@@ -160,4 +208,32 @@ export interface CronPreset {
   expr: string
   /** 图标 */
   icon: string
+}
+
+/**
+ * 单个任务解析失败的警告信息
+ */
+export interface CronJobWarning {
+  /** 在 jobs 数组中的原始索引 */
+  index: number
+  /** 任务名称（如果可提取） */
+  name?: string
+  /** 原始 JSON 文本 */
+  rawJson?: string
+  /** 错误描述 */
+  error: string
+  /** 是否可以自动修复 */
+  canAutoRepair: boolean
+}
+
+/**
+ * get_cron_jobs 容错返回结构
+ */
+export interface CronJobsResult {
+  /** 成功解析的任务列表 */
+  jobs: CronJob[]
+  /** 解析失败的警告列表 */
+  warnings: CronJobWarning[]
+  /** 已自动修复的任务数 */
+  repairedCount: number
 }

@@ -997,6 +997,7 @@ fn main() {
             cron_jobs::delete_cron_job,
             cron_jobs::enable_cron_job,
             cron_jobs::disable_cron_job,
+            cron_jobs::persist_repaired_cron_jobs,
             // Agents
             agents::get_available_agents,
             agents::get_available_agents_with_info,

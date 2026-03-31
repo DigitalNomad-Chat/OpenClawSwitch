@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, inject, type Ref, type ComputedRef } from 'vue'
-import { X, HelpCircle } from 'lucide-vue-next'
+import { X } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
 import DeliveryTargetSelect from '@/components/ui/DeliveryTargetSelect.vue'
 import StyledSelect from '@/components/ui/StyledSelect.vue'
-import { validateCronExpression } from '@/utils/cronValidator'
-import { parseCronExpression } from '@/utils/cronParser'
+import CronScheduleEditor from '@/components/cron/CronScheduleEditor.vue'
+import { isValidScheduleExpr } from '@/utils/cronValidator'
 import { resolveDeliveryTarget, formatAgentDisplay } from '@/utils/bindingResolver'
 import { createTimezoneOptions, createAgentOptions } from '@/utils/timezoneHelper'
 import type { BindingInfo, AgentInfo } from '@/types/binding'
@@ -146,14 +146,7 @@ const touched = ref<Partial<Record<keyof CronJobFormData, boolean>>>({})
 const cronExprValid = computed(() => {
   const expr = formData.value.cronExpr.trim()
   if (!expr) return null
-  return validateCronExpression(expr)
-})
-
-const cronExprDescription = computed(() => {
-  if (cronExprValid.value) {
-    return parseCronExpression(formData.value.cronExpr)
-  }
-  return null
+  return isValidScheduleExpr(expr)
 })
 
 // 收集所有验证错误，用于显示给用户
@@ -164,7 +157,7 @@ const validationErrors = computed(() => {
     errors.push('任务名称不能为空')
   }
   if (!formData.value.agentId.trim()) {
-    errors.push('请选择执行任务的 Agent')
+    errors.push('请选择执行该任务的 Agent')
   }
   if (!formData.value.cronExpr.trim()) {
     errors.push('Cron 表达式不能为空')
@@ -190,7 +183,7 @@ const canSave = computed(() => {
     return false
   }
   if (!formData.value.agentId.trim()) {
-    console.log('[CronJobFormModal] canSave = false: Agent为空')
+    console.log('[CronJobFormModal] canSave = false: Agent 为空')
     return false
   }
   if (!formData.value.cronExpr.trim()) {
@@ -249,7 +242,7 @@ function validateField(field: keyof CronJobFormData) {
 
     case 'agentId':
       if (!value?.trim()) {
-        formErrors.value.agentId = '请选择 Agent'
+        formErrors.value.agentId = '请选择执行该任务的 Agent'
         return false
       }
       break
@@ -511,7 +504,7 @@ watch(
           <!-- Agent ID -->
           <div class="form-field">
             <label class="field-label">
-              Agent <span class="required">*</span>
+              执行该任务的 Agent <span class="required">*</span>
             </label>
             <StyledSelect
               v-model="formData.agentId"
@@ -528,22 +521,12 @@ watch(
         <section class="form-section">
           <h4 class="section-title">调度配置</h4>
 
-          <!-- Cron 表达式 -->
+          <!-- 调度频率选择器 -->
           <div class="form-field">
-            <label class="field-label">
-              Cron 表达式 <span class="required">*</span>
-              <HelpCircle class="inline-help" title="格式: 分 时 日 月 周 (例如: 0 9 * * * 表示每天9点)" />
-            </label>
-            <input
+            <CronScheduleEditor
               v-model="formData.cronExpr"
-              type="text"
-              class="field-input"
-              placeholder="0 9 * * *"
-              @blur="validateField('cronExpr')"
+              :timezone="formData.timezone"
             />
-            <div v-if="cronExprDescription" class="cron-description">
-              {{ cronExprDescription }}
-            </div>
             <span v-if="formErrors.cronExpr" class="field-error">{{ formErrors.cronExpr }}</span>
           </div>
 

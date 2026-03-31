@@ -5,7 +5,7 @@
 
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/tauri'
-import type { CronJob } from '@/types/cron'
+import type { CronJob, CronJobWarning, CronJobsResult } from '@/types/cron'
 
 /**
  * Cron 任务表单数据
@@ -28,17 +28,28 @@ export function useCronJobs() {
   const loading = ref(false)
   const jobs = ref<CronJob[]>([])
   const error = ref<string | null>(null)
+  const warnings = ref<CronJobWarning[]>([])
+  const repairedCount = ref(0)
+
+  const hasWarnings = computed(() => warnings.value.length > 0)
+  const hasRepairs = computed(() => repairedCount.value > 0)
 
   /**
-   * 加载任务列表
+   * 加载任务列表（容错模式）
    */
   async function loadJobs() {
     loading.value = true
     error.value = null
     try {
-      jobs.value = await invoke<CronJob[]>('get_cron_jobs')
+      const result = await invoke<CronJobsResult>('get_cron_jobs')
+      jobs.value = result.jobs ?? []
+      warnings.value = result.warnings ?? []
+      repairedCount.value = result.repairedCount ?? 0
     } catch (err) {
       error.value = String(err)
+      jobs.value = []
+      warnings.value = []
+      repairedCount.value = 0
       throw err
     } finally {
       loading.value = false
@@ -56,9 +67,17 @@ export function useCronJobs() {
       j.state.lastRunStatus === 'error' ||
       (j.state.consecutiveErrors || 0) > 0
     ).length
+    const parseWarnings = warnings.value.length
 
-    return { total, enabled, disabled, withErrors }
+    return { total, enabled, disabled, withErrors, parseWarnings }
   })
+
+  /**
+   * 持久化修复结果（用户主动触发）
+   */
+  async function persistRepairs() {
+    return invoke<string>('persist_repaired_cron_jobs')
+  }
 
   /**
    * 创建任务
@@ -124,8 +143,13 @@ export function useCronJobs() {
     loading,
     jobs,
     error,
+    warnings,
+    repairedCount,
+    hasWarnings,
+    hasRepairs,
     stats,
     loadJobs,
+    persistRepairs,
     createJob,
     updateJob,
     deleteJob,
