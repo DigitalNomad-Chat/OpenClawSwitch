@@ -20,7 +20,7 @@ interface Props {
   show: boolean
   mode: 'create' | 'edit'
   job?: CronJob | null
-  availableAgents?: string[]
+  availableAgents?: (string | AgentInfo)[]
 }
 
 const props = withDefaults(defineProps<Props>(), {

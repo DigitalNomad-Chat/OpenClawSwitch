@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, markRaw } from 'vue'
 import type { NavPage } from '../../domain/navigation'
 import type { EnvironmentStatus } from '../../types/config'
 
@@ -98,63 +98,63 @@ const dashboardCards = ref([
     id: 'overview' as NavPage,
     title: '服务状态',
     icon: 'Activity',
-    component: StatusCard,
+    component: markRaw(StatusCard),
     alwaysVisible: true
   },
   {
     id: 'ai-config' as NavPage,
     title: '配置管理',
     icon: 'Settings',
-    component: ConfigCard,
+    component: markRaw(ConfigCard),
     alwaysVisible: true
   },
   {
     id: 'bindings' as NavPage,
     title: '绑定管理',
     icon: 'Link',
-    component: BindingCard,
+    component: markRaw(BindingCard),
     alwaysVisible: true
   },
   {
     id: 'skill-presets' as NavPage,
     title: '技能预设',
     icon: 'Sparkles',
-    component: SkillPresetsCard,
+    component: markRaw(SkillPresetsCard),
     alwaysVisible: true
   },
   {
     id: 'agent-workspaces' as NavPage,
     title: 'Agent工作空间',
     icon: 'Users',
-    component: AgentWorkspacesCard,
+    component: markRaw(AgentWorkspacesCard),
     alwaysVisible: true
   },
   {
     id: 'cron-jobs' as NavPage,
     title: 'Cron定时任务',
     icon: 'Clock',
-    component: CronJobsCard,
+    component: markRaw(CronJobsCard),
     alwaysVisible: true
   },
   {
     id: 'diagnostics' as NavPage,
     title: '诊断工具',
     icon: 'Stethoscope',
-    component: DiagnosticsCard,
+    component: markRaw(DiagnosticsCard),
     alwaysVisible: true
   },
   {
     id: 'channels' as NavPage,
     title: '消息渠道',
     icon: 'MessageSquare',
-    component: ChannelsCard,
+    component: markRaw(ChannelsCard),
     alwaysVisible: true
   },
   {
     id: 'settings' as NavPage,
     title: '系统设置',
     icon: 'Settings2',
-    component: SettingsCard,
+    component: markRaw(SettingsCard),
     alwaysVisible: true
   }
 ])

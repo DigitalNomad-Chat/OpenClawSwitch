@@ -125,7 +125,7 @@ const stopService = async () => {
   if (serviceActionLoading.value) return
   serviceActionLoading.value = 'stop'
   try {
-    await invoke('stop_openclaw_service')
+    await invoke('stop_gateway')
     appendLog({
       message: '[操作] 正在停止服务...',
       level: 'info',
@@ -146,7 +146,7 @@ const restartService = async () => {
   if (serviceActionLoading.value) return
   serviceActionLoading.value = 'restart'
   try {
-    await invoke('restart_openclaw_service')
+    await invoke('restart_gateway')
     appendLog({
       message: '[操作] 正在重启服务...',
       level: 'info',

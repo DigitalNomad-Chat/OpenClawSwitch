@@ -2884,7 +2884,7 @@ fn build_default_openclaw_config(token: &str) -> serde_json::Value {
 
 #[cfg(target_os = "windows")]
 fn windows_gateway_service_name() -> &'static str {
-    "OpenClaw Gateway"
+    "Clawlite Gateway"
 }
 
 #[cfg(target_os = "windows")]
@@ -3064,7 +3064,7 @@ fn build_windows_gateway_service_install_script(
             "  Invoke-Nssm -Args @('remove', '{}', 'confirm') -IgnoreErrors\n",
             "  Invoke-Nssm -Args @({})\n",
             "  Invoke-Nssm -Args @('set', '{}', 'AppDirectory', '{}')\n",
-            "  Invoke-Nssm -Args @('set', '{}', 'Description', 'OpenClaw Gateway')\n",
+            "  Invoke-Nssm -Args @('set', '{}', 'Description', 'Clawlite Gateway')\n",
             "  Invoke-Nssm -Args @('set', '{}', 'Start', 'SERVICE_AUTO_START')\n",
             "  Invoke-Nssm -Args @('set', '{}', 'AppExit', 'Default', 'Restart')\n",
             "  Invoke-Nssm -Args @('set', '{}', 'AppStdout', '{}')\n",
@@ -3235,7 +3235,7 @@ fn install_gateway_service_via_bundled_nssm(app: &AppHandle, step: &str) -> Resu
         &install_arg_refs,
     )?;
     run_nssm_command_with_log(app, step, &nssm_path, &["set", service_name, "AppDirectory", home_dir_str.as_str()])?;
-    run_nssm_command_with_log(app, step, &nssm_path, &["set", service_name, "Description", "OpenClaw Gateway"])?;
+    run_nssm_command_with_log(app, step, &nssm_path, &["set", service_name, "Description", "Clawlite Gateway"])?;
     run_nssm_command_with_log(app, step, &nssm_path, &["set", service_name, "Start", "SERVICE_AUTO_START"])?;
     run_nssm_command_with_log(app, step, &nssm_path, &["set", service_name, "AppExit", "Default", "Restart"])?;
     run_nssm_command_with_log(app, step, &nssm_path, &["set", service_name, "AppStdout", stdout_log_str.as_str()])?;

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import {
   Activity,
+  Bot,
   Settings,
   Link as LinkIcon,
   Stethoscope,
@@ -9,7 +10,9 @@ import {
   Settings2,
   Package,
   Users,
-  Clock
+  Clock,
+  SlidersHorizontal,
+  Server
 } from 'lucide-vue-next'
 
 interface DockItem {
@@ -50,6 +53,12 @@ const dockItems = computed<DockItem[]>(() => [
     active: props.activeNav === 'diagnostics'
   },
   {
+    id: 'ai-assistant',
+    label: 'AI 助手',
+    icon: Bot,
+    active: props.activeNav === 'ai-assistant'
+  },
+  {
     id: 'channels',
     label: '消息渠道',
     icon: MessageSquare,
@@ -72,6 +81,18 @@ const dockItems = computed<DockItem[]>(() => [
     label: 'Cron 定时任务',
     icon: Clock,
     active: props.activeNav === 'cron-jobs'
+  },
+  {
+    id: 'tools-session',
+    label: '高级配置',
+    icon: SlidersHorizontal,
+    active: props.activeNav === 'tools-session'
+  },
+  {
+    id: 'gateway',
+    label: '网关配置',
+    icon: Server,
+    active: props.activeNav === 'gateway'
   },
   {
     id: 'settings',

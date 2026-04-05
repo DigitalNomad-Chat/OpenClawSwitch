@@ -125,6 +125,8 @@
 
   :root[data-theme='dark'] {
     /* 主色在深色模式下提亮 */
+    --primary-100: rgba(45, 212, 191, 0.15);
+    --primary-300: rgba(45, 212, 191, 0.4);
     --primary-500: #2dd4bf;
     --primary-600: #14b8a6;
 
@@ -166,6 +168,8 @@
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme='light']) {
+      --primary-100: rgba(45, 212, 191, 0.15);
+      --primary-300: rgba(45, 212, 191, 0.4);
       --primary-500: #2dd4bf;
       --primary-600: #14b8a6;
 

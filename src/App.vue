@@ -22,7 +22,9 @@ import DiagnosticsPage from './components/pages/DiagnosticsPage.vue'
 import SkillPresetsPage from './components/pages/SkillPresetsPage.vue'
 import AgentWorkspacesPage from './components/pages/AgentWorkspacesPage.vue'
 import CronJobsPage from './components/pages/CronJobsPage.vue'
-import ChatArea from './components/ai-assistant/ChatArea.vue'
+import ToolsSessionPage from './components/pages/ToolsSessionPage.vue'
+import GatewayConfigPage from './components/pages/GatewayConfigPage.vue'
+import AIAssistantPanel from './components/ai-assistant/AIAssistantPanel.vue'
 import SshConnectModal from './components/SshConnectModal.vue'
 import SshFingerprintDialog from './components/SshFingerprintDialog.vue'
 import Button from './components/ui/Button.vue'
@@ -231,6 +233,14 @@ const navMeta: Record<NavPage, { title: string; subtitle: string }> = {
   'cron-jobs': {
     title: 'Cron 定时任务',
     subtitle: '管理 OpenClaw 的 Cron 定时任务配置。',
+  },
+  'tools-session': {
+    title: '高级配置',
+    subtitle: '管理 Tools、Session 等高级配置项。',
+  },
+  'gateway': {
+    title: '网关配置',
+    subtitle: '管理网关端口、绑定地址、认证方式和安全策略。',
   },
   settings: {
     title: '系统设置',
@@ -1676,8 +1686,8 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div v-else-if="activeNav === 'ai-assistant'" class="oc-page-root ai-assistant-page">
-              <ChatArea />
+            <div v-else-if="activeNav === 'ai-assistant'" class="oc-page-root">
+              <AIAssistantPanel class="h-full min-h-0" :show-toast="showToast" />
             </div>
 
             <DiagnosticsPage
@@ -1703,6 +1713,24 @@ onUnmounted(() => {
 
             <div v-else-if="activeNav === 'cron-jobs'" class="oc-page-root">
               <CronJobsPage class="h-full min-h-0" :show-toast="showToast" />
+            </div>
+
+            <div v-else-if="activeNav === 'tools-session'" class="oc-page-root">
+              <ToolsSessionPage
+                class="h-full min-h-0"
+                :show-toast="showToast"
+                :env-mode="currentEnv.mode"
+                :env-ssh-connected="sshConnected"
+              />
+            </div>
+
+            <div v-else-if="activeNav === 'gateway'" class="oc-page-root">
+              <GatewayConfigPage
+                class="h-full min-h-0"
+                :show-toast="showToast"
+                :env-mode="currentEnv.mode"
+                :env-ssh-connected="sshConnected"
+              />
             </div>
 
             <div v-else class="space-y-3">
