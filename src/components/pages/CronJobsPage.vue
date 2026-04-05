@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, provide } from 'vue'
+import { ask } from '@tauri-apps/api/dialog'
 import { RefreshCw, Plus, Clock, Play, Pause, AlertCircle, AlertTriangle, Save } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
 import CronJobCard from '@/components/cron/CronJobCard.vue'
@@ -75,7 +76,13 @@ function closeModal() {
 }
 
 async function handleDeleteJob(job: CronJob) {
-  if (!confirm(`确定要删除定时任务"${job.name}"吗？此操作不可撤销。`)) {
+  const confirmed = await ask(`确定要删除定时任务"${job.name}"吗？此操作不可撤销。`, {
+    title: '删除确认',
+    kind: 'warning',
+    okLabel: '删除',
+    cancelLabel: '取消',
+  })
+  if (!confirmed) {
     return
   }
 
@@ -91,7 +98,13 @@ async function handleDeleteJob(job: CronJob) {
 
 async function handleToggleJob(job: CronJob) {
   const action = job.enabled ? '禁用' : '启用'
-  if (!confirm(`确定要${action}定时任务"${job.name}"吗？`)) {
+  const confirmed = await ask(`确定要${action}定时任务"${job.name}"吗？`, {
+    title: `${action}确认`,
+    kind: 'info',
+    okLabel: action,
+    cancelLabel: '取消',
+  })
+  if (!confirmed) {
     return
   }
 
