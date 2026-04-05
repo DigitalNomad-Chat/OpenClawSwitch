@@ -69,7 +69,10 @@ const showPrimarySelector = ref(false)
 const newProvider = ref({
   name: '',
   baseUrl: '',
-  apiKey: ''
+  apiKey: '',
+  apiKeySource: 'literal' as 'literal' | 'env',
+  apiKeyEnvVar: '',
+  authHeader: false,
 })
 
 // 粘贴配置模式
@@ -352,7 +355,7 @@ const setFallbackModel = async (modelPath: string) => {
 }
 
 const openProviderModal = () => {
-  newProvider.value = { name: '', baseUrl: '', apiKey: '' }
+  newProvider.value = { name: '', baseUrl: '', apiKey: '', apiKeySource: 'literal', apiKeyEnvVar: '', authHeader: false }
   isEditingProvider.value = false
   editingProviderName.value = ''
   providerModalTab.value = 'manual'
@@ -365,12 +368,33 @@ const openProviderModal = () => {
 }
 
 const openEditProviderModal = (providerName: string) => {
-  const providerConfig = currentConfig.value?.models?.providers?.[providerName]
+  const providerConfig = currentConfig.value?.models?.providers?.[providerName] as any
   if (!providerConfig) return
+
+  // 解析 apiKey：支持 string 和 ApiKeyConfig 对象
+  let apiKey = ''
+  let apiKeySource: 'literal' | 'env' = 'literal'
+  let apiKeyEnvVar = ''
+  if (providerConfig.apiKey) {
+    if (typeof providerConfig.apiKey === 'string') {
+      apiKey = providerConfig.apiKey
+    } else if (typeof providerConfig.apiKey === 'object') {
+      apiKeySource = providerConfig.apiKey.source === 'env' ? 'env' : 'literal'
+      if (apiKeySource === 'env') {
+        apiKeyEnvVar = providerConfig.apiKey.value || providerConfig.apiKey.id || ''
+      } else {
+        apiKey = providerConfig.apiKey.value || ''
+      }
+    }
+  }
+
   newProvider.value = {
     name: providerName,
     baseUrl: providerConfig.baseUrl || '',
-    apiKey: providerConfig.apiKey || ''
+    apiKey,
+    apiKeySource,
+    apiKeyEnvVar,
+    authHeader: providerConfig.authHeader === true,
   }
   isEditingProvider.value = true
   editingProviderName.value = providerName
@@ -393,7 +417,8 @@ const handlePasteJsonChange = (text: string) => {
 
   if (result.provider) {
     if (result.provider.apiKey && result.provider.apiKey !== 'YOUR_API_KEY') {
-      pasteApiKey.value = result.provider.apiKey
+      const key = result.provider.apiKey
+      pasteApiKey.value = typeof key === 'string' ? key : (key as any).value || ''
     }
     if (result.name && !pasteProviderName.value) {
       pasteProviderName.value = result.name
@@ -462,19 +487,39 @@ const addProvider = async () => {
   loading.value = true
   const providerNameToAdd = newProvider.value.name.trim()
   try {
+    // 构建 apiKey 值：支持 literal（字符串）和 env（对象）两种模式
+    let apiKeyValue: string | Record<string, unknown> | null = null
+    if (newProvider.value.apiKeySource === 'env') {
+      const envVar = newProvider.value.apiKeyEnvVar.trim()
+      if (envVar) {
+        apiKeyValue = { source: 'env', value: envVar }
+      }
+    } else {
+      apiKeyValue = newProvider.value.apiKey.trim() || null
+    }
+
     currentConfig.value = await invoke<OpenClawConfig>('upsert_provider', {
       config: currentConfig.value,
       name: providerNameToAdd,
       baseUrl: newProvider.value.baseUrl.trim(),
-      apiKey: newProvider.value.apiKey.trim() || null,
+      apiKey: apiKeyValue,
       api: null
     })
+
+    // 设置 authHeader（需要直接修改 config 对象）
+    if (newProvider.value.authHeader) {
+      const providers = currentConfig.value?.models?.providers
+      if (providers?.[providerNameToAdd]) {
+        (providers[providerNameToAdd] as any).authHeader = true
+      }
+    }
+
     isDirty.value = true
     await refreshProviders()
     await autoSave()
 
     showProviderModal.value = false
-    newProvider.value = { name: '', baseUrl: '', apiKey: '' }
+    newProvider.value = { name: '', baseUrl: '', apiKey: '', apiKeySource: 'literal', apiKeyEnvVar: '', authHeader: false }
     props.showToast('success', `${isEditingProvider.value ? '已更新' : '已添加'}: ${providerNameToAdd}`)
   } catch (error) {
     props.showToast('error', `添加失败: ${error}`)
@@ -1118,9 +1163,30 @@ const loadRemoteDefaultConfig = async () => {
             <Input v-model="newProvider.baseUrl" placeholder="https://api.openai.com/v1" :disabled="loading" />
           </div>
           <div>
-            <Label class="text-xs mb-1.5 block" style="color: var(--oc-text-secondary);">API Key <span style="color: var(--oc-text-muted);">(可选)</span></Label>
-            <Input v-model="newProvider.apiKey" type="password" placeholder="sk-..." :disabled="loading" />
+            <div class="flex items-center gap-2 mb-1.5">
+              <Label class="text-xs" style="color: var(--oc-text-secondary);">API Key</Label>
+              <span class="text-xs" style="color: var(--oc-text-muted);">(可选)</span>
+              <div class="flex-1"></div>
+              <div class="flex rounded p-0.5" style="background: var(--oc-card-elevated);">
+                <button
+                  @click="newProvider.apiKeySource = 'literal'"
+                  class="px-2 py-0.5 text-xs rounded transition-colors"
+                  :style="newProvider.apiKeySource === 'literal' ? { background: 'var(--oc-card)', color: 'var(--oc-text-primary)' } : { color: 'var(--oc-text-muted)' }"
+                >明文</button>
+                <button
+                  @click="newProvider.apiKeySource = 'env'"
+                  class="px-2 py-0.5 text-xs rounded transition-colors"
+                  :style="newProvider.apiKeySource === 'env' ? { background: 'var(--oc-card)', color: 'var(--oc-text-primary)' } : { color: 'var(--oc-text-muted)' }"
+                >环境变量</button>
+              </div>
+            </div>
+            <Input v-if="newProvider.apiKeySource === 'literal'" v-model="newProvider.apiKey" type="password" placeholder="sk-..." :disabled="loading" />
+            <Input v-else v-model="newProvider.apiKeyEnvVar" placeholder="环境变量名，如 OPENAI_API_KEY" :disabled="loading" />
           </div>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" v-model="newProvider.authHeader" class="rounded" :disabled="loading" />
+            <span class="text-xs" style="color: var(--oc-text-secondary);">自定义认证头 (authHeader)</span>
+          </label>
 
           <div class="flex flex-wrap items-center gap-2">
             <span class="text-xs" style="color: var(--oc-text-muted);">快速选择:</span>

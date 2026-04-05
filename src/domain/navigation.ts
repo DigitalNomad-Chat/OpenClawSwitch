@@ -9,6 +9,8 @@ export type NavPage =
   | 'skill-presets'
   | 'agent-workspaces'
   | 'cron-jobs'
+  | 'tools-session'
+  | 'gateway'
 
 export interface NavItem {
   id: NavPage
@@ -26,5 +28,7 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { id: 'skill-presets', label: '技能预设', optional: true },
   { id: 'agent-workspaces', label: 'Agent Workspaces', optional: true },
   { id: 'cron-jobs', label: 'Cron 定时任务', optional: true },
+  { id: 'tools-session', label: '高级配置', optional: true },
+  { id: 'gateway', label: '网关配置', optional: true },
   { id: 'settings', label: '系统设置' },
 ] as const

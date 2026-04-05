@@ -78,7 +78,7 @@ export const QUICK_SETUP_PRIMARY_PROVIDER_IDS: QuickSetupProviderId[] = [
   'deepseek',
 ]
 
-const BAILIAN_MODELS: ModelConfig[] = [
+export const BAILIAN_MODELS: ModelConfig[] = [
   {
     id: 'qwen3.5-plus',
     name: 'qwen3.5-plus',
@@ -153,7 +153,7 @@ const BAILIAN_MODELS: ModelConfig[] = [
   },
 ]
 
-const LKEAP_MODELS: ModelConfig[] = [
+export const LKEAP_MODELS: ModelConfig[] = [
   {
     id: 'tc-code-latest',
     name: 'Auto',

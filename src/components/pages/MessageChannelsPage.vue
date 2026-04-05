@@ -168,6 +168,7 @@ interface ChannelForm {
   feishuGroupPolicy: 'allowlist' | 'open' | 'disabled'
   feishuGroupAllowFrom: string
   feishuRequireMention: boolean
+  feishuGroups: Array<{ id: string; requireMention: boolean | 'inherit' }>
   feishuGroupCommandMentionBypass: 'single_bot' | 'never' | 'always'
   feishuWebhookPort: string
   feishuWebhookPath: string
@@ -192,8 +193,9 @@ interface ChannelForm {
   wecomSendThinkingMessage: boolean
 
   qqName: string
-  qqDmPolicy: 'open' | 'pairing' | 'allowlist'
   qqAllowFrom: string
+  qqGroupPolicy: 'open' | 'allowlist' | 'disabled'
+  qqGroupAllowFrom: string
   qqSystemPrompt: string
   qqImageServerBaseUrl: string
   qqMarkdownSupport: boolean
@@ -390,6 +392,7 @@ const defaultForm = (): ChannelForm => ({
   feishuGroupPolicy: 'allowlist',
   feishuGroupAllowFrom: '',
   feishuRequireMention: true,
+  feishuGroups: [],
   feishuGroupCommandMentionBypass: 'single_bot',
   feishuWebhookPort: '',
   feishuWebhookPath: '/feishu/events',
@@ -414,8 +417,9 @@ const defaultForm = (): ChannelForm => ({
   wecomSendThinkingMessage: true,
 
   qqName: '',
-  qqDmPolicy: 'pairing',
   qqAllowFrom: '',
+  qqGroupPolicy: 'open',
+  qqGroupAllowFrom: '',
   qqSystemPrompt: '',
   qqImageServerBaseUrl: '',
   qqMarkdownSupport: true,
@@ -1125,6 +1129,30 @@ const openAccountModal = () => {
   selectedPanel.value = 'credentials'
   showAccountSelectorDropdown.value = false
   showAccountModal.value = true
+
+  // 仅重置凭据字段，保留策略类配置
+  const form = forms.value[selectedChannelId.value]
+  if (form) {
+    // 通用凭据
+    form.token = ''
+    form.userId = ''
+    // 渠道特有凭据（全部重置）
+    form.slackBotToken = ''
+    form.slackAppToken = ''
+    form.slackSigningSecret = ''
+    form.feishuAppId = ''
+    form.feishuAppSecret = ''
+    form.wecomBotId = ''
+    form.wecomSecret = ''
+    form.qqAppId = ''
+    form.qqClientSecret = ''
+    form.dingtalkClientId = ''
+    form.dingtalkClientSecret = ''
+    form.dingtalkRobotCode = ''
+    form.dingtalkCorpId = ''
+    form.dingtalkAgentId = ''
+    // enabled 状态和策略类字段保持不变
+  }
 }
 
 const closeAccountModal = () => {
@@ -1139,7 +1167,7 @@ const submitAccount = async () => {
   if (!nextAccountId) return
 
   if (!isMessageChannelAccountIdValid(nextAccountId)) {
-    props.showToast('error', '账号 ID 仅支持字母、数字、点、下划线和中划线')
+    props.showToast('error', '账号 ID 仅支持小写字母、数字、点、下划线和中划线，且不能包含大写字母')
     return
   }
 
@@ -1241,6 +1269,19 @@ const canConfigureCurrentChannel = computed(() => {
   )
 })
 const enabledLabel = computed(() => (currentForm.value.enabled ? '已启用' : '已停用'))
+
+// 群组级策略覆盖：添加群组相关状态
+const showFeishuGroupAdd = ref(false)
+const newFeishuGroupId = ref('')
+const feishuGroupInputRef = ref<HTMLInputElement | null>(null)
+const addFeishuGroup = () => {
+  const id = newFeishuGroupId.value.trim()
+  if (!id) return
+  if (currentForm.value.feishuGroups.some(g => g.id === id)) return
+  currentForm.value.feishuGroups.push({ id, requireMention: 'inherit' })
+  newFeishuGroupId.value = ''
+  showFeishuGroupAdd.value = false
+}
 
 const loadLocalConfig = async () => invoke<[OpenClawConfig, ConfigFileInfo]>('load_default_config')
 
@@ -1486,8 +1527,9 @@ const applyQqConfig = (mutable: JsonRecord, form: ChannelForm) => {
   deletePathValue(mutable, ['channels', 'qqbot', 'token'])
   deletePathValue(mutable, ['channels', 'qqbot', 'clientSecretFile'])
   setStringOrDelete(mutable, ['channels', 'qqbot', 'name'], form.qqName)
-  setPathValue(mutable, ['channels', 'qqbot', 'dmPolicy'], form.qqDmPolicy)
   setListOrDelete(mutable, ['channels', 'qqbot', 'allowFrom'], form.qqAllowFrom)
+  setPathValue(mutable, ['channels', 'qqbot', 'groupPolicy'], form.qqGroupPolicy)
+  setListOrDelete(mutable, ['channels', 'qqbot', 'groupAllowFrom'], form.qqGroupAllowFrom)
   setStringOrDelete(mutable, ['channels', 'qqbot', 'systemPrompt'], form.qqSystemPrompt)
   setStringOrDelete(mutable, ['channels', 'qqbot', 'imageServerBaseUrl'], form.qqImageServerBaseUrl)
   setPathValue(mutable, ['channels', 'qqbot', 'markdownSupport'], form.qqMarkdownSupport)
@@ -1506,6 +1548,28 @@ const applyFeishuConfig = (mutable: JsonRecord, form: ChannelForm) => {
   setPathValue(mutable, ['channels', 'feishu', 'groupPolicy'], form.feishuGroupPolicy)
   setListOrDelete(mutable, ['channels', 'feishu', 'groupAllowFrom'], form.feishuGroupAllowFrom)
   setPathValue(mutable, ['channels', 'feishu', 'requireMention'], form.feishuRequireMention)
+
+  // 群组级 requireMention 覆盖
+  // 注意：openclaw SDK 中 groups 非空时自动启用白名单模式，
+  // 必���包含 "*" 通配符才能让未列出的群组通过白名单检查。
+  // 优先级链：per-group requireMention > default ("*") > 全局 requireMention > true
+  const feishuGroups: JsonRecord = {}
+  let hasExplicitOverride = false
+  for (const item of form.feishuGroups) {
+    if (item.requireMention === 'inherit') continue
+    hasExplicitOverride = true
+    feishuGroups[item.id] = { requireMention: item.requireMention === true }
+  }
+  if (hasExplicitOverride) {
+    // 有显式覆盖时，写入通配符确保所有群组通过白名单
+    if (!feishuGroups['*']) {
+      feishuGroups['*'] = {}
+    }
+    setPathValue(mutable, ['channels', 'feishu', 'groups'], feishuGroups)
+  } else {
+    deletePathValue(mutable, ['channels', 'feishu', 'groups'])
+  }
+
   setPathValue(
     mutable,
     ['channels', 'feishu', 'groupCommandMentionBypass'],
@@ -1839,12 +1903,13 @@ const syncChannelsFromConfig = async () => {
     forms.value.qq.token = qqCredentials.appId
     forms.value.qq.userId = qqCredentials.clientSecret
     forms.value.qq.qqName = asString(readQqAccount(['name']))
-    forms.value.qq.qqDmPolicy = enumOrDefault(
-      readQqShared(['dmPolicy']),
-      ['open', 'pairing', 'allowlist'],
-      'pairing'
-    )
     forms.value.qq.qqAllowFrom = listToText(readQqShared(['allowFrom']))
+    forms.value.qq.qqGroupPolicy = enumOrDefault(
+      readQqShared(['groupPolicy']),
+      ['open', 'allowlist', 'disabled'],
+      'open'
+    )
+    forms.value.qq.qqGroupAllowFrom = listToText(readQqShared(['groupAllowFrom']))
     forms.value.qq.qqSystemPrompt = asString(readQqShared(['systemPrompt']))
     forms.value.qq.qqImageServerBaseUrl = asString(readQqShared(['imageServerBaseUrl']))
     forms.value.qq.qqMarkdownSupport =
@@ -1877,6 +1942,14 @@ const syncChannelsFromConfig = async () => {
     )
     forms.value.feishu.feishuGroupAllowFrom = listToText(readFeishuShared(['groupAllowFrom']))
     forms.value.feishu.feishuRequireMention = readFeishuShared(['requireMention']) ?? true
+    // 群组级 requireMention 覆盖（跳过 "*" 通配符和 inherit 条目，仅显示显式覆盖的群组）
+    const feishuGroupsRaw = asRecord(readFeishuShared(['groups'])) || {}
+    forms.value.feishu.feishuGroups = Object.entries(feishuGroupsRaw)
+      .filter(([id, cfg]) => id !== '*' && asRecord(cfg).requireMention !== undefined)
+      .map(([id, cfg]) => ({
+        id,
+        requireMention: asRecord(cfg).requireMention as boolean
+      }))
     forms.value.feishu.feishuGroupCommandMentionBypass = enumOrDefault(
       readFeishuShared(['groupCommandMentionBypass']),
       ['single_bot', 'never', 'always'],
@@ -3081,7 +3154,7 @@ onUnmounted(() => {
               </div>
             </template>
 
-            <template v-if="false">
+            <template v-else-if="selectedChannelId === 'wecom'">
               <div>
                 <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">DM 策略（channels.wecom.dmPolicy）</label>
                 <select v-model="currentForm.wecomDmPolicy" class="oc-select" :disabled="!canConfigureCurrentChannel">
@@ -3192,6 +3265,92 @@ onUnmounted(() => {
                 </p>
               </div>
 
+              <div v-if="currentForm.feishuGroupPolicy !== 'disabled'" class="mt-3">
+                <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">
+                  群组级@策略覆盖（channels.feishu.groups）
+                </label>
+                <p class="text-xs mb-2" style="color: var(--oc-text-muted);">
+                  添加群组后将自动启用白名单模式，仅列出的群组和通配符（*）匹配的群组可以与 Bot 交互。未列出的群组将无法触发回复。
+                </p>
+                <!-- 全局默认提示 -->
+                <div
+                  class="mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+                  style="background: var(--bg-surface-elevated); color: var(--oc-text-muted);"
+                >
+                  <span style="color: var(--oc-text-secondary);">全局默认：</span>
+                  <span v-if="currentForm.feishuRequireMention">需要@机器人</span>
+                  <span v-else>不需要@（任何消息都回复）</span>
+                  <span class="ml-1">— 未配置的群组将使用此值</span>
+                </div>
+                <!-- 群组卡片列表 -->
+                <div
+                  v-for="(item, index) in currentForm.feishuGroups"
+                  :key="item.id"
+                  class="mb-2 rounded-lg border px-3 py-2.5"
+                  style="border-color: var(--oc-card-border); background: var(--bg-primary);"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                      <div class="mb-1.5 text-xs truncate" style="color: var(--oc-text-muted);">{{ item.id }}</div>
+                      <select
+                        class="oc-select text-sm"
+                        :disabled="!canConfigureCurrentChannel"
+                        :value="item.requireMention === 'inherit' ? 'inherit' : String(item.requireMention)"
+                        @change="(event) => {
+                          const val = (event.target as HTMLSelectElement).value
+                          currentForm.feishuGroups[index].requireMention = val === 'inherit' ? 'inherit' : val === 'true'
+                        }"
+                      >
+                        <option value="inherit">继承全局默认{{ currentForm.feishuRequireMention ? '（需要@）' : '（不需要@）' }}</option>
+                        <option value="true">需要@（仅@时回复）</option>
+                        <option value="false">不需要@（任何消息都回复）</option>
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      class="flex-shrink-0 rounded-md p-1.5 text-xs transition-colors hover:text-red-500"
+                      style="color: var(--oc-text-muted);"
+                      :disabled="!canConfigureCurrentChannel"
+                      @click="currentForm.feishuGroups.splice(index, 1)"
+                    >✕</button>
+                  </div>
+                </div>
+                <!-- 添加按钮 -->
+                <div v-if="canConfigureCurrentChannel" class="mt-2">
+                  <div v-if="showFeishuGroupAdd" class="mb-2 flex items-center gap-2">
+                    <input
+                      ref="feishuGroupInputRef"
+                      v-model="newFeishuGroupId"
+                      class="flex-1 rounded-md border px-3 py-1.5 text-sm outline-none"
+                      style="border-color: var(--oc-card-border); background: var(--bg-primary); color: var(--oc-text-primary);"
+                      placeholder="输入群组 ID（如 oc_xxx）"
+                      @keydown.enter="addFeishuGroup"
+                      @keydown.escape="showFeishuGroupAdd = false"
+                    />
+                    <button
+                      type="button"
+                      class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                      style="background: var(--primary-500); color: white;"
+                      :disabled="!newFeishuGroupId.trim()"
+                      @click="addFeishuGroup"
+                    >确认</button>
+                    <button
+                      type="button"
+                      class="rounded-md px-2 py-1.5 text-sm transition-colors"
+                      style="color: var(--oc-text-muted);"
+                      @click="showFeishuGroupAdd = false"
+                    >取消</button>
+                  </div>
+                  <button
+                    v-else
+                    type="button"
+                    class="rounded-md border border-dashed px-3 py-2 text-sm transition-colors"
+                    style="border-color: var(--oc-card-border); color: var(--oc-text-muted);"
+                    @click="showFeishuGroupAdd = true"
+                  >＋ 添加群组覆盖</button>
+                </div>
+              </div>
+
               <div>
                 <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">群聊命令绕过策略（channels.feishu.groupCommandMentionBypass）</label>
                 <select v-model="currentForm.feishuGroupCommandMentionBypass" class="oc-select" :disabled="!canConfigureCurrentChannel">
@@ -3229,6 +3388,39 @@ onUnmounted(() => {
                   <option value="open">open</option>
                   <option value="allowlist">allowlist</option>
                 </select>
+              </div>
+            </template>
+
+            <template v-else-if="selectedChannelId === 'qq'">
+              <div>
+                <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">DM allowFrom（channels.qqbot.allowFrom）</label>
+                <textarea
+                  class="oc-textarea"
+                  :value="currentForm.qqAllowFrom"
+                  placeholder="每行一个用户 OpenID，留空或包含 * 表示允许所有人"
+                  :disabled="!canConfigureCurrentChannel"
+                  @input="(event) => { currentForm.qqAllowFrom = (event.target as HTMLTextAreaElement).value }"
+                />
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">群组策略（channels.qqbot.groupPolicy）</label>
+                <select v-model="currentForm.qqGroupPolicy" class="oc-select" :disabled="!canConfigureCurrentChannel">
+                  <option value="open">open（允许所有群）</option>
+                  <option value="allowlist">allowlist（白名单模式）</option>
+                  <option value="disabled">disabled（禁止群消息）</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">群发送者白名单（channels.qqbot.groupAllowFrom）</label>
+                <textarea
+                  class="oc-textarea"
+                  :value="currentForm.qqGroupAllowFrom"
+                  placeholder="每行一个发送者 OpenID，留空或包含 * 表示允许所有人"
+                  :disabled="!canConfigureCurrentChannel"
+                  @input="(event) => { currentForm.qqGroupAllowFrom = (event.target as HTMLTextAreaElement).value }"
+                />
               </div>
             </template>
 

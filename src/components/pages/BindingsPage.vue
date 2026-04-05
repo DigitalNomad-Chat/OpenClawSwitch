@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/tauri'
 import { ask } from '@tauri-apps/api/dialog'
+import { DEFAULT_GATEWAY_READY_OPTIONS, waitForGatewayReady } from '../../domain/gatewayStartup'
 import Button from '../ui/Button.vue'
 import Input from '../ui/Input.vue'
 import Label from '../ui/Label.vue'
@@ -18,7 +19,8 @@ import {
   Check,
   AlertTriangle,
   X,
-  Zap
+  Zap,
+  Info
 } from 'lucide-vue-next'
 import type {
   OpenClawConfig,
@@ -92,6 +94,10 @@ const showAddModal = ref(false)
 const showEditModal = ref(false)
 const editingBinding = ref<BindingInfo | null>(null)
 const showUnboundWarning = ref(true) // 显示未绑定 Agent 提示
+
+// 重启网关弹窗状态
+const showRestartModal = ref(false)
+const restartLoading = ref(false)
 
 // 表单状态
 const formData = ref<BindingRequest>({
@@ -426,6 +432,7 @@ const addBinding = async () => {
 
     closeAddModal()
     props.showToast('success', '绑定添加成功')
+    showRestartModal.value = true
   } catch (error) {
     props.showToast('error', `添加失败: ${error}`)
   } finally {
@@ -471,6 +478,7 @@ const updateBinding = async () => {
 
     closeEditModal()
     props.showToast('success', '绑定更新成功')
+    showRestartModal.value = true
   } catch (error) {
     props.showToast('error', `更新失败: ${error}`)
   } finally {
@@ -498,6 +506,7 @@ const deleteBinding = async (binding: BindingInfo) => {
     await saveConfig()
 
     props.showToast('success', '绑定删除成功')
+    showRestartModal.value = true
   } catch (error) {
     props.showToast('error', `删除失败: ${error}`)
   } finally {
@@ -515,6 +524,42 @@ const saveConfig = async () => {
     })
   } catch (error) {
     throw error
+  }
+}
+
+// ============================================================================
+// 网关重启
+// ============================================================================
+
+const checkGatewayHealth = async (): Promise<boolean> => {
+  try {
+    if (isLocalMode.value) {
+      return await invoke<boolean>('health_check_gateway')
+    }
+    return await invoke<boolean>('ssh_health_check')
+  } catch {
+    return false
+  }
+}
+
+const doRestartGateway = async () => {
+  restartLoading.value = true
+  try {
+    if (isLocalMode.value) {
+      await invoke('restart_gateway')
+    } else {
+      await invoke('ssh_restart_gateway')
+    }
+    const ready = await waitForGatewayReady(checkGatewayHealth, DEFAULT_GATEWAY_READY_OPTIONS)
+    if (!ready) {
+      throw new Error('重启命令已发送，但网关在预期时间内未恢复可访问')
+    }
+    props.showToast('success', '网关重启成功，绑定已生效')
+    showRestartModal.value = false
+  } catch (error) {
+    props.showToast('error', `重启网关失败: ${error}`)
+  } finally {
+    restartLoading.value = false
   }
 }
 
@@ -1118,6 +1163,55 @@ onMounted(async () => {
           <Button @click="updateBinding" :disabled="loading">
             <Check v-if="!loading" class="w-4 h-4" />
             {{ loading ? '保存中...' : '保存' }}
+          </Button>
+        </div>
+      </Card>
+    </div>
+
+    <!-- 重启网关提示弹窗 -->
+    <div v-if="showRestartModal" class="oc-modal-overlay" @click.self="showRestartModal = false">
+      <Card class="oc-modal-card w-full max-w-sm p-6">
+        <!-- 标题区 -->
+        <div class="flex items-center gap-3 mb-4">
+          <div class="flex items-center justify-center w-10 h-10 rounded-full"
+               style="background: color-mix(in srgb, var(--oc-info) 15%, transparent);">
+            <Info class="w-5 h-5" style="color: var(--oc-info);" />
+          </div>
+          <div>
+            <h3 style="font-weight: var(--font-weight-semibold); font-size: var(--text-base); color: var(--oc-text-primary);">
+              网关需要重启
+            </h3>
+            <p style="font-size: var(--text-xs); color: var(--oc-text-muted);">
+              {{ isLocalMode ? '本地模式' : '远程模式' }}
+            </p>
+          </div>
+        </div>
+
+        <!-- 说明 -->
+        <div class="rounded-lg p-3 mb-5"
+             style="background: var(--oc-card-elevated); border: 1px solid var(--oc-divider);">
+          <p style="font-size: var(--text-sm); color: var(--oc-text-secondary); line-height: 1.6;">
+            绑定配置已保存，但需要<strong style="color: var(--oc-text-primary);">重启网关</strong>后才会生效。
+          </p>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="flex gap-2">
+          <Button
+            variant="outline"
+            class="flex-1"
+            @click="showRestartModal = false"
+            :disabled="restartLoading"
+          >
+            稍后再说
+          </Button>
+          <Button
+            class="flex-1"
+            @click="doRestartGateway"
+            :disabled="restartLoading"
+          >
+            <span v-if="restartLoading" class="animate-pulse">重启中...</span>
+            <span v-else>立即重启</span>
           </Button>
         </div>
       </Card>

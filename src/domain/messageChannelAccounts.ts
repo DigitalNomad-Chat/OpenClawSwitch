@@ -71,8 +71,11 @@ const PUBLIC_SCOPED_KEYS: Record<ManagedMessageChannelId, string[]> = {
     'replyToMode',
     'defaultTo',
     'groups',
+    'proxy',
+    'streaming',
+    'network',
   ],
-  discord: ['dm', 'groupPolicy', 'replyToMode', 'guilds'],
+  discord: ['dm', 'groupPolicy', 'replyToMode', 'guilds', 'proxy', 'streaming', 'network'],
   slack: [
     'mode',
     'webhookPort',
@@ -86,6 +89,9 @@ const PUBLIC_SCOPED_KEYS: Record<ManagedMessageChannelId, string[]> = {
     'requireMention',
     'textChunkLimit',
     'chunkMode',
+    'proxy',
+    'streaming',
+    'network',
   ],
   feishu: [
     'domain',
@@ -94,6 +100,7 @@ const PUBLIC_SCOPED_KEYS: Record<ManagedMessageChannelId, string[]> = {
     'allowFrom',
     'groupPolicy',
     'groupAllowFrom',
+    'groups',
     'groupCommandMentionBypass',
     'webhookPort',
     'webhookPath',
@@ -102,6 +109,9 @@ const PUBLIC_SCOPED_KEYS: Record<ManagedMessageChannelId, string[]> = {
     'renderMode',
     'mediaMaxMb',
     'dynamicAgentCreation',
+    'proxy',
+    'streaming',
+    'network',
   ],
   wecom: [
     'dmPolicy',
@@ -111,18 +121,22 @@ const PUBLIC_SCOPED_KEYS: Record<ManagedMessageChannelId, string[]> = {
     'groups',
     'websocketUrl',
     'sendThinkingMessage',
+    'proxy',
+    'streaming',
+    'network',
   ],
   qq: [
-    'dmPolicy',
     'allowFrom',
+    'groupPolicy',
+    'groupAllowFrom',
     'systemPrompt',
     'imageServerBaseUrl',
     'markdownSupport',
   ],
-  dingtalk: [...(SHARED_SCOPED_KEYS.dingtalk || [])],
+  dingtalk: [...(SHARED_SCOPED_KEYS.dingtalk || []), 'streaming', 'network'],
 }
 
-const ACCOUNT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const ACCOUNT_ID_PATTERN = /^[a-z0-9][a-z0-9._-]*$/
 
 const asRecord = (value: unknown): JsonRecord | undefined =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : undefined

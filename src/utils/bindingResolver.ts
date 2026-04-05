@@ -167,11 +167,11 @@ export function resolveChannelInfo(
   let peerId = to
 
   if (channel === 'telegram') {
-    const parsed = parseTelegramTarget(to)
+    const parsed = parseTelegramTarget(to!)
     peerKind = parsed.peerKind
     peerId = parsed.peerId
   } else if (channel === 'feishu') {
-    const parsed = parseFeishuTarget(to)
+    const parsed = parseFeishuTarget(to!)
     peerKind = parsed.peerKind
     peerId = parsed.peerId
   }
@@ -193,33 +193,30 @@ export function resolveChannelInfo(
   }
 
   // 构建显示文本
-  const maskedId = maskPeerId(peerId)
+  const maskedId = maskPeerId(peerId!)
   let displayText = ''
-
-  // 判断是否匹配到绑定
-  const isMatched = !!binding
 
   if (boundAgent) {
     // 有绑定：显示 Agent 名称
-    displayText = `${getChannelIcon(channel)} ${boundAgent.name}的${getPeerKindName(channel, peerKind)} (${maskedId})`
+    displayText = `${getChannelIcon(channel!)} ${boundAgent.name}的${getPeerKindName(channel!, peerKind)} (${maskedId})`
   } else if (peerId && peerKind) {
     // 无绑定但有 peer 信息：显示渠道 + 警示标记
-    displayText = `${getChannelIcon(channel)} ${getChannelName(channel)}${getPeerKindName(channel, peerKind)} (${maskedId}) ⚠️`
+    displayText = `${getChannelIcon(channel!)} ${getChannelName(channel!)}${getPeerKindName(channel!, peerKind)} (${maskedId}) ⚠️`
   } else if (peerId) {
     // peerId 存在但 peerKind 未知：显示渠道 + 警示
-    displayText = `${getChannelIcon(channel)} ${getChannelName(channel)} (${maskedId}) ⚠️`
+    displayText = `${getChannelIcon(channel!)} ${getChannelName(channel!)} (${maskedId}) ⚠️`
   } else {
     // 只有 channel：显示渠道
-    displayText = `${getChannelIcon(channel)} ${getChannelName(channel)}`
+    displayText = `${getChannelIcon(channel!)} ${getChannelName(channel!)}`
   }
 
   return {
-    channel,
-    channelName: getChannelName(channel),
-    channelIcon: getChannelIcon(channel),
+    channel: channel!,
+    channelName: getChannelName(channel!),
+    channelIcon: getChannelIcon(channel!),
     peerKind,
-    peerKindName: getPeerKindName(channel, peerKind),
-    peerId,
+    peerKindName: getPeerKindName(channel!, peerKind),
+    peerId: peerId!,
     maskedPeerId: maskedId,
     boundAgent,
     displayText
@@ -294,8 +291,6 @@ export function createDeliveryTargetOptions(
   return bindings.map(binding => {
     // 获取 Agent 信息
     const agent = agents.find(a => a.id === binding.agentId)
-    const agentDisplayName = agent ? formatAgentDisplay(agent) : binding.agentId
-
     // Agent 纯名称（不含 ID），用于简化显示
     // 优先使用 agent.name，如果不存在或与 id 相同，则使用 agent.id
     let agentSimpleName = binding.agentId

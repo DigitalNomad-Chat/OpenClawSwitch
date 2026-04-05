@@ -81,6 +81,13 @@ describe('isMessageChannelAccountIdValid', () => {
     expect(isMessageChannelAccountIdValid('bad id')).toBe(false)
     expect(isMessageChannelAccountIdValid('')).toBe(false)
   })
+
+  it('rejects uppercase letters', () => {
+    expect(isMessageChannelAccountIdValid('Main')).toBe(false)
+    expect(isMessageChannelAccountIdValid('OpsBot')).toBe(false)
+    expect(isMessageChannelAccountIdValid('Coding-Plan')).toBe(false)
+    expect(isMessageChannelAccountIdValid('Bot1')).toBe(false)
+  })
 })
 
 describe('isMessageChannelConfigured', () => {
