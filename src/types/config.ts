@@ -21,12 +21,24 @@ export interface ModelConfig {
   compat?: Record<string, unknown>
 }
 
+/** API Key 配置（支持直接值和环境变量引用） */
+export interface ApiKeyConfig {
+  /** 引用来源：literal = 直接明文，env = 从环境变量读取 */
+  source?: 'literal' | 'env'
+  /** source 为 literal 时的值，或 source 为 env 时的环境变量名 */
+  value?: string
+  /** source 为 env 时，可选的凭据提供商 */
+  provider?: string
+}
+
 /** 提供商配置 */
 export interface ProviderConfig {
   baseUrl: string
-  apiKey?: string
+  apiKey?: string | ApiKeyConfig
   api?: string
   models?: ModelConfig[]
+  /** 自定义认证头 */
+  authHeader?: boolean
 }
 
 /** 模型选择配置 */
@@ -46,6 +58,93 @@ export interface AgentDefaults {
   subagents?: { maxConcurrent?: number }
 }
 
+/** Tools 配置 */
+export interface ToolsConfig {
+  profile?: string
+  allow?: string[]
+  deny?: string[]
+  web?: {
+    search?: { enabled?: boolean; provider?: string; apiKey?: string }
+    fetch?: { enabled?: boolean }
+  }
+  sessions?: { visibility?: string }
+  agentToAgent?: { enabled?: boolean; allow?: string[] }
+  sandbox?: { tools?: { allow?: string[]; deny?: string[] } }
+}
+
+/** Agent 列表项配置 */
+export interface AgentItem {
+  id: string
+  name?: string
+  workspace?: string
+  model?: string
+  skills?: string[]
+}
+
+/** Session 配置 */
+export interface SessionConfig {
+  idleMinutes?: number
+  dmScope?: string
+  agentToAgent?: { maxPingPongTurns?: number }
+  maintenance?: { mode?: string; pruneAfter?: string }
+}
+
+/** 认证 Profile 配置 */
+export interface AuthProfile {
+  provider?: string
+  mode?: string
+}
+
+export interface AuthConfig {
+  profiles?: Record<string, AuthProfile>
+}
+
+/** Gateway 配置 */
+export interface GatewayConfig {
+  port?: number
+  mode?: 'local' | 'remote'
+  bind?: 'loopback' | '0.0.0.0'
+  auth?: { mode?: 'token' | 'none'; token?: string }
+  tailscale?: { mode?: 'serve' | 'off' }
+  nodes?: { denyCommands?: string[] }
+}
+
+/** Hooks 配置 */
+export interface HooksConfig {
+  internal?: {
+    enabled?: boolean
+    entries?: Record<string, { enabled?: boolean }>
+  }
+}
+
+/** Skills 配置 */
+export interface SkillsConfig {
+  install?: {
+    nodeManager?: string
+  }
+}
+
+/** Messages 配置 */
+export interface MessagesConfig {
+  ackReactionScope?: string
+}
+
+/** Commands 配置 */
+export interface CommandsConfig {
+  native?: string
+  nativeSkills?: string
+  restart?: boolean
+  ownerDisplay?: string
+}
+
+/** Wizard 配置 */
+export interface WizardConfig {
+  lastRunAt?: string
+  lastRunVersion?: string
+  lastRunCommand?: string
+  lastRunMode?: string
+}
+
 /** 完整的 OpenClaw 配置（使用 any 保留未知字段） */
 export interface OpenClawConfig {
   meta?: {
@@ -58,8 +157,17 @@ export interface OpenClawConfig {
   }
   agents?: {
     defaults?: AgentDefaults
-    list?: Array<{ model?: string }>
+    list?: AgentItem[]
   }
+  tools?: ToolsConfig
+  session?: SessionConfig
+  gateway?: GatewayConfig
+  auth?: AuthConfig
+  hooks?: HooksConfig
+  skills?: SkillsConfig
+  messages?: MessagesConfig
+  commands?: CommandsConfig
+  wizard?: WizardConfig
   // 其他字段作为透传
   [key: string]: unknown
 }

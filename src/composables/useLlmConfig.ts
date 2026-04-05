@@ -9,6 +9,7 @@ import {
   type LLMProvider,
   type LLMActiveConfig,
   type TestConnectionResult,
+  type OpenClawProviderSummary,
   DEFAULT_LLM_CONFIG,
   BUILT_IN_PROVIDERS,
   getDefaultBaseUrl,
@@ -249,6 +250,17 @@ export function useLlmConfig() {
     return validateLLMProvider(provider)
   }
 
+  /**
+   * 发现 OpenClaw 中已配置的 Provider（速填功能）
+   */
+  async function discoverOpenClawProviders(): Promise<OpenClawProviderSummary[]> {
+    try {
+      return await invoke<OpenClawProviderSummary[]>('llm_discover_openclaw_providers')
+    } catch {
+      return []
+    }
+  }
+
   return {
     // 状态
     loading,
@@ -276,6 +288,7 @@ export function useLlmConfig() {
     createProvider,
     getAvailableModels,
     validateProvider,
+    discoverOpenClawProviders,
 
     // 常量
     BUILT_IN_PROVIDERS,

@@ -172,6 +172,20 @@ export function useClawWebSocket() {
 
       // 触发自定义事件，供组件监听
       window.dispatchEvent(new CustomEvent('claw:message', { detail: response }))
+
+      // Dispatch tool completion events for UI feedback
+      if (response.type === 'tool' && response.data) {
+        const toolData = response.data as { tool: string; status: string; detail?: string }
+        if (toolData.status === 'done') {
+          window.dispatchEvent(new CustomEvent('claw:tool_done', {
+            detail: { tool: toolData.tool, detail: toolData.detail }
+          }))
+        } else if (toolData.status === 'error') {
+          window.dispatchEvent(new CustomEvent('claw:tool_error', {
+            detail: { tool: toolData.tool, detail: toolData.detail }
+          }))
+        }
+      }
     } catch (err) {
       console.error('[ClawWS] Parse error', err)
     }

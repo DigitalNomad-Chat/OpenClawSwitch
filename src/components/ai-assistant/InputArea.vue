@@ -5,43 +5,49 @@
         ref="textareaRef"
         v-model="input"
         class="message-input"
-        placeholder="输入消息... (Shift+Enter 换行，Enter 发送)"
+        :placeholder="isGenerating ? '生成中... 可继续输入下一条消息' : '输入消息... (Shift+Enter 换行，Enter 发送)'"
         rows="1"
-        :disabled="disabled || isGenerating"
+        :disabled="disabled"
         @keydown="handleKeydown"
         @input="adjustHeight"
       />
+      <!-- 发送按钮 / 停止按钮 -->
       <button
+        v-if="!isGenerating"
         class="send-button"
         :disabled="!canSend"
-        :class="{ sending: isGenerating }"
         @click="send"
+        title="发送消息"
       >
         <svg
-          v-if="!isGenerating"
           xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
+          width="18"
+          height="18"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
           stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         >
           <line x1="22" y1="2" x2="11" y2="13" />
           <polygon points="22 2 15 22 11 13 2 9 22 2" />
         </svg>
+      </button>
+      <button
+        v-else
+        class="stop-button"
+        @click="emit('stop')"
+        title="停止生成"
+      >
         <svg
-          v-else
-          class="spinner"
           xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
+          width="18"
+          height="18"
           viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
+          fill="currentColor"
         >
-          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          <rect x="6" y="6" width="12" height="12" rx="2" />
         </svg>
       </button>
     </div>
@@ -64,6 +70,7 @@ interface Props {
 
 interface Emits {
   (e: 'send', content: string): void
+  (e: 'stop'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -79,7 +86,7 @@ const textareaRef = ref<HTMLTextAreaElement>()
 
 // 是否可以发送
 const canSend = computed(() => {
-  return !props.disabled && !props.isGenerating && input.value.trim().length > 0
+  return !props.disabled && input.value.trim().length > 0
 })
 
 // 处理键盘事件
@@ -134,60 +141,66 @@ watch(() => props.isGenerating, (isGenerating) => {
 
 <style scoped>
 .input-area {
-  padding: 1rem;
-  background: white;
-  border-top: 1px solid #e5e7eb;
+  padding: 0.75rem 1rem;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--oc-divider);
+  flex-shrink: 0;
 }
 
 .input-wrapper {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.625rem;
   align-items: flex-end;
 }
 
 .message-input {
   flex: 1;
-  min-height: 44px;
+  min-height: 40px;
   max-height: 200px;
-  padding: 0.75rem 1rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.75rem;
-  font-size: 0.9375rem;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--oc-divider);
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
   line-height: 1.5;
   resize: none;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  background: var(--bg-surface-elevated);
+  color: var(--oc-text-primary);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .message-input:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: var(--primary-300);
+  box-shadow: 0 0 0 3px var(--primary-100);
 }
 
 .message-input:disabled {
-  background: #f9fafb;
+  background: var(--bg-secondary);
   cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .message-input::placeholder {
-  color: #9ca3af;
+  color: var(--oc-text-placeholder);
 }
 
 .send-button {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border: none;
-  border-radius: 0.75rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: var(--radius-lg);
+  background: var(--primary-600);
   color: white;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s, opacity 0.2s;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
 }
 
 .send-button:hover:not(:disabled) {
+  opacity: 0.9;
   transform: scale(1.05);
 }
 
@@ -196,7 +209,7 @@ watch(() => props.isGenerating, (isGenerating) => {
 }
 
 .send-button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -204,33 +217,53 @@ watch(() => props.isGenerating, (isGenerating) => {
   animation: spin 1s linear infinite;
 }
 
+.stop-button {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--oc-text-error, #ef4444);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.stop-button:hover {
+  opacity: 0.85;
+  transform: scale(1.05);
+}
+
+.stop-button:active {
+  transform: scale(0.95);
+}
+
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .input-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
+  margin-top: 0.375rem;
+  font-size: 0.6875rem;
 }
 
 .hint-text {
-  color: #9ca3af;
+  color: var(--oc-text-tertiary);
 }
 
 .generating-text {
-  color: #667eea;
+  color: var(--primary-600);
   font-weight: 500;
 }
 
 .error-text {
-  color: #ef4444;
+  color: var(--oc-text-error, #ef4444);
 }
 </style>

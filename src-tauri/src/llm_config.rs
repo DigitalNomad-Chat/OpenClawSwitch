@@ -202,6 +202,109 @@ pub fn llm_get_active_config() -> Result<Value, String> {
     }
 }
 
+/// OpenClaw Provider 摘要（速填功能）
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenClawProviderSummary {
+    pub name: String,
+    pub base_url: String,
+    pub has_api_key: bool,
+    pub api_key_value: Option<String>,
+    pub model_count: usize,
+    pub models: Vec<String>,
+}
+
+/// 发现 OpenClaw 中已配置的 Provider（速填功能）
+#[tauri::command]
+pub fn llm_discover_openclaw_providers() -> Result<Vec<OpenClawProviderSummary>, String> {
+    s! { let openclaw_dir = ".openclaw"; }
+    s! { let openclaw_file = "openclaw.json"; }
+    s! { let models_key = "models"; }
+    s! { let providers_key = "providers"; }
+    s! { let base_url_key = "baseUrl"; }
+    s! { let api_key_key = "apiKey"; }
+    s! { let source_key = "source"; }
+    s! { let literal_val = "literal"; }
+    s! { let value_key = "value"; }
+    s! { let id_key = "id"; }
+
+    let home_dir = dirs::home_dir().ok_or(s!("无法获取用户主目录").to_string())?;
+    let config_path = home_dir.join(openclaw_dir).join(openclaw_file);
+
+    if !config_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let content = fs::read_to_string(&config_path)
+        .map_err(|e| format!("读取 OpenClaw 配置文件失败: {}", e))?;
+
+    let config: Value = serde_json::from_str(&content)
+        .map_err(|e| format!("解析 OpenClaw 配置文件失败: {}", e))?;
+
+    let mut summaries = Vec::new();
+
+    // 遍历 models.providers
+    if let Some(models) = config.get(models_key).and_then(|m| m.get(providers_key)) {
+        if let Some(providers) = models.as_object() {
+            for (name, provider_val) in providers {
+                let base_url = provider_val
+                    .get(base_url_key)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                // 解析 apiKey
+                let (has_api_key, api_key_value) = match provider_val.get(api_key_key) {
+                    None => (false, None),
+                    Some(key_val) => {
+                        if let Some(s) = key_val.as_str() {
+                            // 纯字符串 apiKey
+                            let has = !s.is_empty();
+                            (has, if has { Some(s.to_string()) } else { None })
+                        } else if let Some(obj) = key_val.as_object() {
+                            // 对象形式 apiKey
+                            let has = !obj.is_empty();
+                            let value = obj
+                                .get(source_key)
+                                .and_then(|s| s.as_str())
+                                .filter(|s| *s == literal_val)
+                                .and_then(|_| obj.get(value_key))
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            (has, value)
+                        } else {
+                            (false, None)
+                        }
+                    }
+                };
+
+                // 提取模型列表
+                let mut models_list = Vec::new();
+                if let Some(model_arr) = provider_val.get("models").and_then(|m| m.as_array()) {
+                    for model in model_arr {
+                        if let Some(id) = model.get(id_key).and_then(|v| v.as_str()) {
+                            models_list.push(id.to_string());
+                        }
+                    }
+                }
+
+                let model_count = models_list.len();
+
+                summaries.push(OpenClawProviderSummary {
+                    name: name.clone(),
+                    base_url,
+                    has_api_key,
+                    api_key_value,
+                    model_count,
+                    models: models_list,
+                });
+            }
+        }
+    }
+
+    Ok(summaries)
+}
+
 /// 测试 Provider 连接
 #[tauri::command]
 pub async fn llm_test_connection(
