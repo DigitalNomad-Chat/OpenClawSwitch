@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"claw-agent/openclawtypes"
 	"gopkg.in/yaml.v3"
 )
 
@@ -46,34 +47,12 @@ func defaultWorkspace() string {
 	return filepath.Join(clawHome(), "workspace")
 }
 
-// OpenClawConfig 是 OpenClaw JSON 配置格式 (从 ~/.openclaw/openclaw.json 读取)
-type OpenClawConfig struct {
-	Models  *OpenClawModels  `json:"models,omitempty"`
-	Agents  *OpenClawAgents  `json:"agents,omitempty"`
-	Bindings []interface{}   `json:"bindings,omitempty"`
+// DefaultWorkspace returns the canonical workspace path (~/.openclaw/workspace).
+// All code paths (CLI args, config file, defaults) must use this function.
+func DefaultWorkspace() string {
+	return filepath.Join(openclawHome(), "workspace")
 }
 
-type OpenClawModels struct {
-	Providers map[string]OpenClawProvider `json:"providers,omitempty"`
-}
-
-type OpenClawProvider struct {
-	BaseURL string `json:"baseUrl,omitempty"`
-	APIKey  string `json:"apiKey,omitempty"`
-}
-
-type OpenClawAgents struct {
-	Defaults *OpenClawDefaults `json:"defaults,omitempty"`
-}
-
-type OpenClawDefaults struct {
-	Model *OpenClawModel `json:"model,omitempty"`
-}
-
-type OpenClawModel struct {
-	Primary    string   `json:"primary,omitempty"`
-	Fallbacks []string `json:"fallbacks,omitempty"`
-}
 
 // openclawHome returns ~/.openclaw
 func openclawHome() string {
@@ -90,8 +69,8 @@ func openclawConfigPath() string {
 }
 
 // LoadOpenClawConfig loads OpenClaw config from ~/.openclaw/openclaw.json
-func LoadOpenClawConfig() (*OpenClawConfig, error) {
-	cfg := &OpenClawConfig{}
+func LoadOpenClawConfig() (*openclawtypes.OpenClawConfig, error) {
+	cfg := &openclawtypes.OpenClawConfig{}
 	path := openclawConfigPath()
 
 	data, err := os.ReadFile(path)
@@ -135,17 +114,24 @@ func LoadClawConfig() (*ClawConfig, error) {
 		cfg.Model = "claude-sonnet-4-6"
 	}
 	if cfg.Workspace == "" {
-		cfg.Workspace = defaultWorkspace()
+		cfg.Workspace = DefaultWorkspace()
 	}
 	if cfg.Providers == nil {
 		cfg.Providers = make(map[string]ProviderConf)
+	}
+
+	// Ensure workspace directory exists
+	if cfg.Workspace != "" {
+		if err := os.MkdirAll(cfg.Workspace, 0755); err != nil {
+			return nil, fmt.Errorf("create workspace: %w", err)
+		}
 	}
 
 	return cfg, nil
 }
 
 // mergeOpenClawConfig 将 OpenClaw JSON 配置合并到 ClawConfig
-func mergeOpenClawConfig(cfg *ClawConfig, openclawCfg *OpenClawConfig) *ClawConfig {
+func mergeOpenClawConfig(cfg *ClawConfig, openclawCfg *openclawtypes.OpenClawConfig) *ClawConfig {
 	if openclawCfg.Models == nil {
 		return cfg
 	}
@@ -159,12 +145,12 @@ func mergeOpenClawConfig(cfg *ClawConfig, openclawCfg *OpenClawConfig) *ClawConf
 				BaseURL: provider.BaseURL,
 			}
 		} else {
-			// 更新已存在的 provider（JSON 配置优先）
+			// 更新已存在的 provider（YAML 优先，JSON 只填充空字段）
 			existing := cfg.Providers[name]
-			if provider.APIKey != "" {
+			if existing.APIKey == "" && provider.APIKey != "" {
 				existing.APIKey = provider.APIKey
 			}
-			if provider.BaseURL != "" {
+			if existing.BaseURL == "" && provider.BaseURL != "" {
 				existing.BaseURL = provider.BaseURL
 			}
 			cfg.Providers[name] = existing
@@ -224,6 +210,11 @@ func LoadClawConfigPath(path string) (*ClawConfig, error) {
 		}
 	}
 
+	// Merge OpenClaw JSON config (only fills empty fields)
+	if openclawCfg, err := LoadOpenClawConfig(); err == nil && openclawCfg != nil {
+		cfg = mergeOpenClawConfig(cfg, openclawCfg)
+	}
+
 	// Apply defaults.
 	if cfg.Provider == "" {
 		cfg.Provider = "anthropic"
@@ -232,10 +223,17 @@ func LoadClawConfigPath(path string) (*ClawConfig, error) {
 		cfg.Model = "claude-sonnet-4-6"
 	}
 	if cfg.Workspace == "" {
-		cfg.Workspace = defaultWorkspace()
+		cfg.Workspace = DefaultWorkspace()
 	}
 	if cfg.Providers == nil {
 		cfg.Providers = make(map[string]ProviderConf)
+	}
+
+	// Ensure workspace directory exists
+	if cfg.Workspace != "" {
+		if err := os.MkdirAll(cfg.Workspace, 0755); err != nil {
+			return nil, fmt.Errorf("create workspace: %w", err)
+		}
 	}
 
 	return cfg, nil

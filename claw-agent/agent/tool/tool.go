@@ -26,7 +26,6 @@ func NewRegistry(workDir string) *Registry {
 	r.Register(&EditTool{})
 	r.Register(&WriteTool{})
 	r.Register(NewWebFetchTool())
-	r.Register(NewOpenClawConfigTool())
 	return r
 }
 

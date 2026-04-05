@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
+
+	"claw-agent/openclawtypes"
 )
 
 const (
@@ -12,31 +15,10 @@ const (
 	backupDir         = "~/.openclaw/backups"
 )
 
-// Config OpenClaw 配置结构
-type Config struct {
-	Models ModelsConfig `json:"models"`
-	Agent  AgentConfig  `json:"agent"`
-}
-
-// ModelsConfig 模型配置
-type ModelsConfig struct {
-	Providers map[string]ProviderConfig `json:"providers"`
-}
-
-// ProviderConfig 服务商配置
-type ProviderConfig struct {
-	BaseURL string `json:"baseUrl"`
-	APIKey  string `json:"apiKey,omitempty"`
-}
-
-// AgentConfig Agent 配置
-type AgentConfig struct {
-	Model           string   `json:"model"`
-	FallbackModels  []string `json:"fallbackModels,omitempty"`
-	SystemPrompt    string   `json:"systemPrompt,omitempty"`
-	Temperature     float64  `json:"temperature,omitempty"`
-	MaxTokens       int      `json:"maxTokens,omitempty"`
-}
+// Type aliases for backward compatibility
+type Config = openclawtypes.OpenClawConfig
+type ModelsConfig = openclawtypes.OpenClawModels
+type ProviderConfig = openclawtypes.OpenClawProvider
 
 // Tool OpenClaw 配置工具
 type Tool struct {
@@ -101,28 +83,27 @@ func (t *Tool) WriteConfig(cfg *Config) error {
 
 // ValidateConfig 验证配置
 func (t *Tool) ValidateConfig(cfg *Config) error {
-	if cfg.Agent.Model == "" {
-		return fmt.Errorf("agent model is required")
+	if cfg.Models == nil || cfg.Models.Providers == nil {
+		return fmt.Errorf("models configuration is required")
 	}
-
-	// 检查服务商是否存在
-	provider, _ := splitModelID(cfg.Agent.Model)
-	if provider == "" {
-		return fmt.Errorf("invalid model format: %s", cfg.Agent.Model)
-	}
-
-	if _, exists := cfg.Models.Providers[provider]; !exists {
-		return fmt.Errorf("provider '%s' not configured", provider)
-	}
-
-	// 验证备用模型
-	for _, fallbackModel := range cfg.Agent.FallbackModels {
-		p, _ := splitModelID(fallbackModel)
-		if p == "" {
-			return fmt.Errorf("invalid fallback model format: %s", fallbackModel)
+	if cfg.Agents != nil && cfg.Agents.Defaults != nil && cfg.Agents.Defaults.Model != nil {
+		if cfg.Agents.Defaults.Model.Primary != "" {
+			provider, _ := splitModelID(cfg.Agents.Defaults.Model.Primary)
+			if provider != "" {
+				if _, exists := cfg.Models.Providers[provider]; !exists {
+					return fmt.Errorf("provider '%s' for primary model not configured", provider)
+				}
+			}
 		}
-		if _, exists := cfg.Models.Providers[p]; !exists {
-			return fmt.Errorf("fallback provider '%s' not configured", p)
+		// 验证备用模型
+		for _, fallbackModel := range cfg.Agents.Defaults.Model.Fallbacks {
+			p, _ := splitModelID(fallbackModel)
+			if p == "" {
+				return fmt.Errorf("invalid fallback model format: %s", fallbackModel)
+			}
+			if _, exists := cfg.Models.Providers[p]; !exists {
+				return fmt.Errorf("fallback provider '%s' not configured", p)
+			}
 		}
 	}
 
@@ -135,13 +116,27 @@ func (t *Tool) AddProvider(name, baseURL, apiKey string) error {
 	if err != nil {
 		// 如果配置不存在，创建新配置
 		cfg = &Config{
-			Models: ModelsConfig{
+			Models: &ModelsConfig{
 				Providers: make(map[string]ProviderConfig),
 			},
-			Agent: AgentConfig{
-				Model: "openai/gpt-4o",
+			Agents: &openclawtypes.OpenClawAgents{
+				Defaults: &openclawtypes.OpenClawDefaults{
+					Model: &openclawtypes.OpenClawModel{
+						Primary: "openai/gpt-4o",
+					},
+				},
 			},
 		}
+	}
+
+	// 确保 Models 存在
+	if cfg.Models == nil {
+		cfg.Models = &ModelsConfig{
+			Providers: make(map[string]ProviderConfig),
+		}
+	}
+	if cfg.Models.Providers == nil {
+		cfg.Models.Providers = make(map[string]ProviderConfig)
 	}
 
 	// 添加服务商
@@ -175,7 +170,18 @@ func (t *Tool) SetModel(model string) error {
 		return err
 	}
 
-	cfg.Agent.Model = model
+	// 确保嵌套结构存在
+	if cfg.Agents == nil {
+		cfg.Agents = &openclawtypes.OpenClawAgents{}
+	}
+	if cfg.Agents.Defaults == nil {
+		cfg.Agents.Defaults = &openclawtypes.OpenClawDefaults{}
+	}
+	if cfg.Agents.Defaults.Model == nil {
+		cfg.Agents.Defaults.Model = &openclawtypes.OpenClawModel{}
+	}
+
+	cfg.Agents.Defaults.Model.Primary = model
 	return t.WriteConfig(cfg)
 }
 
@@ -186,13 +192,24 @@ func (t *Tool) AddFallbackModel(model string) error {
 		return err
 	}
 
-	for _, m := range cfg.Agent.FallbackModels {
+	// 确保嵌套结构存在
+	if cfg.Agents == nil {
+		cfg.Agents = &openclawtypes.OpenClawAgents{}
+	}
+	if cfg.Agents.Defaults == nil {
+		cfg.Agents.Defaults = &openclawtypes.OpenClawDefaults{}
+	}
+	if cfg.Agents.Defaults.Model == nil {
+		cfg.Agents.Defaults.Model = &openclawtypes.OpenClawModel{}
+	}
+
+	for _, m := range cfg.Agents.Defaults.Model.Fallbacks {
 		if m == model {
 			return fmt.Errorf("model already exists in fallback list")
 		}
 	}
 
-	cfg.Agent.FallbackModels = append(cfg.Agent.FallbackModels, model)
+	cfg.Agents.Defaults.Model.Fallbacks = append(cfg.Agents.Defaults.Model.Fallbacks, model)
 	return t.WriteConfig(cfg)
 }
 
@@ -209,9 +226,8 @@ func (t *Tool) backupConfig() error {
 		return err
 	}
 
-	// 生成备份文件名
-	timestamp := "20060102-150405"
-	backupFile := filepath.Join(backupPath, "openclaw-"+timestamp+".json")
+	// 生成备份文件名（使用当前时间戳）
+	backupFile := filepath.Join(backupPath, "openclaw-"+time.Now().Format("20060102-150405")+".json")
 
 	// 复制文件
 	data, err := os.ReadFile(t.configPath)
