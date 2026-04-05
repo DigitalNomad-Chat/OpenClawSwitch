@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"claw-agent/agent/runner"
-	"claw/channel"
+	"claw-agent/channel"
 
 	tgmd "github.com/Mad-Pixels/goldmark-tgmd"
 )

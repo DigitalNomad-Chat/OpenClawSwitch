@@ -8,7 +8,7 @@ import (
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 	"claw-agent/agent/runner"
-	"claw/channel"
+	"claw-agent/channel"
 )
 
 // --- splitMessage ---

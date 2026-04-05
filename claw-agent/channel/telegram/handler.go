@@ -11,7 +11,7 @@ import (
 
 	"claw-agent/agent/runner"
 	aitypes "claw-agent/ai/types"
-	"claw/channel"
+	"claw-agent/channel"
 	tele "gopkg.in/telebot.v4"
 )
 

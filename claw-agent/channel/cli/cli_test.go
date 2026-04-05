@@ -8,7 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"claw/agent"
+	"claw-agent/agent"
 	"claw-agent/agent/runner"
 )
 

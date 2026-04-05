@@ -10,7 +10,7 @@ import (
 	"unicode/utf8"
 
 	"claw-agent/agent/runner"
-	"claw/channel"
+	"claw-agent/channel"
 	tele "gopkg.in/telebot.v4"
 )
 

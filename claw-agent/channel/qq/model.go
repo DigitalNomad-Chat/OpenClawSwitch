@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"claw/channel"
+	"claw-agent/channel"
 )
 
 // handleModelCommand processes /model with optional arguments.

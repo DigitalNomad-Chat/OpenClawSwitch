@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"claw/channel"
+	"claw-agent/channel"
 )
 
 // ModelOption re-exports channel.ModelOption for use by callers.

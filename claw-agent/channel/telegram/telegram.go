@@ -11,8 +11,8 @@ import (
 
 	tgmd "github.com/Mad-Pixels/goldmark-tgmd"
 
-	"claw/agent"
-	"claw/channel"
+	"claw-agent/agent"
+	"claw-agent/channel"
 	tele "gopkg.in/telebot.v4"
 )
 

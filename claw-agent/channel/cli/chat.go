@@ -14,9 +14,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
-	"claw/agent"
+	"claw-agent/agent"
 	"claw-agent/agent/runner"
-	"claw/channel"
+	"claw-agent/channel"
 )
 
 // streamStartMsg carries the stream channel from the agent.

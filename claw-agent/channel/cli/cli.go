@@ -9,8 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"claw/agent"
-	"claw/channel"
+	"claw-agent/agent"
+	"claw-agent/channel"
 )
 
 // ModelOption re-exports channel.ModelOption for use by callers.

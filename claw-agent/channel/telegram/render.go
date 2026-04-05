@@ -7,7 +7,7 @@ import (
 	"io"
 
 	"claw-agent/agent/runner"
-	"claw/channel"
+	"claw-agent/channel"
 	"github.com/yuin/goldmark/parser"
 	tele "gopkg.in/telebot.v4"
 )

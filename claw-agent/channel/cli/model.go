@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"claw/channel"
+	"claw-agent/channel"
 )
 
 // modelOption represents a selectable provider/model combination.

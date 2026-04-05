@@ -3,7 +3,7 @@ package telegram
 import (
 	"fmt"
 
-	"claw/channel"
+	"claw-agent/channel"
 	tele "gopkg.in/telebot.v4"
 )
 

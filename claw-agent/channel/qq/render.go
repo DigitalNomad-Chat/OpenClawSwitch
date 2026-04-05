@@ -3,7 +3,7 @@ package qq
 import (
 	"github.com/tencent-connect/botgo/dto"
 	"claw-agent/agent/runner"
-	"claw/channel"
+	"claw-agent/channel"
 )
 
 // sendFinalResponse sends the completed response, splitting into chunks

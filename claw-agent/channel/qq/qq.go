@@ -13,8 +13,8 @@ import (
 	"github.com/tencent-connect/botgo/event"
 	"github.com/tencent-connect/botgo/openapi"
 	"github.com/tencent-connect/botgo/token"
-	"claw/agent"
-	"claw/channel"
+	"claw-agent/agent"
+	"claw-agent/channel"
 	"golang.org/x/oauth2"
 )
 

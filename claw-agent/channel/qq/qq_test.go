@@ -10,7 +10,7 @@ import (
 
 	"github.com/tencent-connect/botgo/dto"
 	"claw-agent/agent/runner"
-	"claw/channel"
+	"claw-agent/channel"
 )
 
 // --- SplitMessage (shared) ---
