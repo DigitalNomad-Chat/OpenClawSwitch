@@ -80,13 +80,22 @@
          内容区域 — Content Area
          ═══════════════════════════════════════════════════════ -->
     <div class="panel-content">
-      <ChatArea
-        v-show="activeTab === 'chat'"
-        :visible="activeTab === 'chat'"
-        @go-config="activeTab = 'config'"
-        @reconnect="handleReconnect"
-        @clear="handleClear"
-      />
+      <div v-show="activeTab === 'chat'" class="chat-tab-layout">
+        <SessionSidebar
+          :sessions="sessions"
+          :current-session-id="currentSessionId"
+          @create="createSession"
+          @switch="switchSession"
+          @delete="deleteSession"
+          @rename="renameSession"
+        />
+        <ChatArea
+          :visible="activeTab === 'chat'"
+          @go-config="activeTab = 'config'"
+          @reconnect="handleReconnect"
+          @clear="handleClear"
+        />
+      </div>
       <div v-show="activeTab === 'config'" class="config-tab-content">
         <LlmConfigPanel :show-toast="props.showToast" />
         <SecuritySettings :show-toast="props.showToast" />
@@ -99,6 +108,7 @@
 import { ref, onUnmounted } from 'vue'
 import { MessageSquare, Settings, RefreshCw, Trash2, RotateCcw } from 'lucide-vue-next'
 import ChatArea from './ChatArea.vue'
+import SessionSidebar from './SessionSidebar.vue'
 import LlmConfigPanel from './LlmConfigPanel.vue'
 import SecuritySettings from './SecuritySettings.vue'
 import { useAIAssistant } from '@/composables/useAIAssistantFinal'
@@ -116,6 +126,12 @@ const {
   restart,
   clearMessages,
   disconnect,
+  currentSessionId,
+  sessions,
+  createSession,
+  switchSession,
+  deleteSession,
+  renameSession,
 } = useAIAssistant()
 
 const isRestarting = ref(false)
@@ -394,8 +410,15 @@ onUnmounted(() => {
   min-height: 0;
 }
 
-.panel-content > :deep(*) {
+.chat-tab-layout {
+  display: flex;
   height: 100%;
+  overflow: hidden;
+}
+
+.chat-tab-layout > :deep(.chat-area) {
+  flex: 1;
+  min-width: 0;
 }
 
 .config-tab-content {

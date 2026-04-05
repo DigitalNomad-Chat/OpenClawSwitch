@@ -8,4 +8,9 @@
   .ai-assistant-page {
     font-size: 14px;
   }
+
+  .session-sidebar {
+    width: 180px;
+    min-width: 180px;
+  }
 }

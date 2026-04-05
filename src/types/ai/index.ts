@@ -29,10 +29,22 @@ export interface Session {
   updatedAt: number
 }
 
+// 会话元数据（与后端 SessionInfo 对齐）
+export interface SessionInfo {
+  id: string
+  channel: string
+  title: string
+  created_at: number
+  last_active: number
+  archived: boolean
+}
+
 // WebSocket 请求消息
 export interface ClawRequest {
   id: string
   type: 'chat' | 'status' | 'config' | 'tool_approval_response'
+    | 'list_sessions' | 'create_session' | 'switch_session'
+    | 'delete_session' | 'rename_session'
   sessionId: string
   content?: string
   data?: Record<string, any>
@@ -43,6 +55,8 @@ export interface ClawRequest {
 export interface ClawResponse {
   id?: string
   type: 'delta' | 'done' | 'error' | 'tool' | 'status' | 'tool_approval_request'
+    | 'session_list' | 'session_created' | 'session_switched'
+    | 'session_deleted' | 'session_renamed'
   sessionId: string
   data?: Record<string, any>
   timestamp: number

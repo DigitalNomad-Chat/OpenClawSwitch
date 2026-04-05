@@ -7,7 +7,7 @@
  */
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/tauri'
-import type { Message, ConnectionStatus, ClawResponse, ToolApprovalState } from '@/types/ai'
+import type { Message, ConnectionStatus, ClawResponse, SessionInfo, ToolApprovalState } from '@/types/ai'
 import { useLlmConfig } from './useLlmConfig'
 
 // ========== 模块级单例状态 ==========
@@ -19,6 +19,8 @@ const messages = ref<Message[]>([])
 const isGenerating = ref(false)
 const currentSessionId = ref('default')
 const pendingApprovals = ref<Map<string, ToolApprovalState>>(new Map())
+const sessions = ref<SessionInfo[]>([])
+const isLoadingHistory = ref(false)
 
 let llmConfigInstance: ReturnType<typeof useLlmConfig> | null = null
 const getLlmConfig = () => {
@@ -40,6 +42,66 @@ let authToken = ''
 const isConnected = computed(() => connectionStatus.value === 'connected')
 const isConnecting = computed(() => connectionStatus.value === 'connecting')
 const hasError = computed(() => connectionStatus.value === 'error')
+
+// ========== WebSocket 请求辅助 ==========
+
+/**
+ * 通过 WebSocket 发送请求
+ */
+const sendWSRequest = (type: string, extra?: { sessionId?: string; content?: string; data?: Record<string, any> }) => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    console.warn('[AI] WebSocket not ready, request ignored:', type)
+    return
+  }
+  ws.send(JSON.stringify({
+    id: `req-${Date.now()}`,
+    type,
+    sessionId: currentSessionId.value,
+    ...extra,
+    timestamp: Date.now(),
+  }))
+}
+
+// ========== 会话管理方法 ==========
+
+/**
+ * 列出所有非归档会话
+ */
+const listSessions = () => {
+  sendWSRequest('list_sessions')
+}
+
+/**
+ * 创建新会话
+ */
+const createSession = () => {
+  sendWSRequest('create_session')
+}
+
+/**
+ * 切换会话（清空当前消息 → 加载历史）
+ */
+const switchSession = (sessionId: string) => {
+  if (sessionId === currentSessionId.value) return
+
+  messages.value = []
+  isLoadingHistory.value = true
+  sendWSRequest('switch_session', { sessionId })
+}
+
+/**
+ * 删除会话
+ */
+const deleteSession = (sessionId: string) => {
+  sendWSRequest('delete_session', { sessionId })
+}
+
+/**
+ * 重命名会话
+ */
+const renameSession = (sessionId: string, title: string) => {
+  sendWSRequest('rename_session', { sessionId, data: { title } })
+}
 
 // ========== 连接管理 ==========
 
@@ -135,6 +197,9 @@ const connectWebSocket = (wsPort: number): Promise<void> => {
 
       // 发送队列中的消息
       flushMessageQueue()
+
+      // 自动加载会话列表
+      listSessions()
 
       resolve()
     }
@@ -305,10 +370,103 @@ const sendMessage = async (content: string) => {
 const handleWSMessage = (data: string) => {
   try {
     const response: ClawResponse = JSON.parse(data)
-    console.log('[AI] Received:', response)
+    console.log('[AI] Received:', response.type)
 
+    // --- 会话管理响应（无需 lastMessage） ---
+    switch (response.type) {
+      case 'session_list': {
+        const rawSessions = response.data?.sessions as Array<Record<string, any>> | undefined
+        if (rawSessions) {
+          sessions.value = rawSessions.map(s => ({
+            id: s.id || '',
+            channel: s.channel || '',
+            title: s.title || '新会话',
+            created_at: s.created_at ? new Date(s.created_at).getTime() : 0,
+            last_active: s.last_active ? new Date(s.last_active).getTime() : 0,
+            archived: s.archived || false,
+          }))
+          // 自动切到最近活跃的会话
+          if (!currentSessionId.value || currentSessionId.value === 'default') {
+            const active = sessions.value
+              .filter(s => !s.archived)
+              .sort((a, b) => (b.last_active || b.created_at) - (a.last_active || a.created_at))[0]
+            if (active) {
+              switchSession(active.id)
+            }
+          }
+        }
+        return
+      }
+
+      case 'session_created': {
+        const rawSession = response.data?.session as Record<string, any> | undefined
+        if (rawSession) {
+          const info: SessionInfo = {
+            id: rawSession.id || '',
+            channel: rawSession.channel || '',
+            title: rawSession.title || '新会话',
+            created_at: rawSession.created_at ? new Date(rawSession.created_at).getTime() : Date.now(),
+            last_active: rawSession.last_active ? new Date(rawSession.last_active).getTime() : Date.now(),
+            archived: false,
+          }
+          sessions.value.unshift(info)
+          switchSession(info.id)
+        }
+        return
+      }
+
+      case 'session_switched': {
+        const sid = response.data?.sessionId as string | undefined
+        const rawMessages = response.data?.messages as Array<Record<string, any>> | undefined
+        if (sid) {
+          currentSessionId.value = sid
+        }
+        if (rawMessages) {
+          messages.value = rawMessages.map(m => ({
+            id: m.id || `hist-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            role: m.role as 'user' | 'assistant',
+            content: m.content || '',
+            timestamp: m.timestamp || Date.now(),
+            status: 'done' as const,
+          }))
+        }
+        isLoadingHistory.value = false
+        return
+      }
+
+      case 'session_deleted': {
+        const deletedId = response.data?.sessionId as string | undefined
+        if (deletedId) {
+          sessions.value = sessions.value.filter(s => s.id !== deletedId)
+          // 若删除的是当前会话，切换到最近的会话
+          if (deletedId === currentSessionId.value) {
+            messages.value = []
+            const next = sessions.value.find(s => !s.archived)
+            if (next) {
+              switchSession(next.id)
+            } else {
+              currentSessionId.value = 'default'
+            }
+          }
+        }
+        return
+      }
+
+      case 'session_renamed': {
+        const renamedId = response.data?.sessionId as string | undefined
+        const newTitle = response.data?.title as string | undefined
+        if (renamedId && newTitle) {
+          const target = sessions.value.find(s => s.id === renamedId)
+          if (target) {
+            target.title = newTitle
+          }
+        }
+        return
+      }
+    }
+
+    // --- 聊天响应（需要 lastMessage） ---
     const lastMessage = messages.value[messages.value.length - 1]
-
     if (!lastMessage || lastMessage.role !== 'assistant') {
       return
     }
@@ -325,6 +483,8 @@ const handleWSMessage = (data: string) => {
         // 完成
         lastMessage.status = 'done'
         isGenerating.value = false
+        // 刷新会话列表以更新 last_active
+        listSessions()
         break
 
       case 'error':
@@ -463,6 +623,7 @@ const restart = async () => {
   reconnectAttempts = 0
   messageQueue = []
   authToken = ''
+  sessions.value = []
 
   try {
     await invoke('claw_stop_agent')
@@ -489,6 +650,9 @@ export function useAIAssistant() {
     isConnecting,
     hasError,
     pendingApprovals,
+    currentSessionId,
+    sessions,
+    isLoadingHistory,
 
     // 连接方法（共享引用）
     connect,
@@ -502,5 +666,12 @@ export function useAIAssistant() {
     clearMessages,
     stopGenerating,
     sendToolApproval,
+
+    // 会话管理方法（共享引用）
+    listSessions,
+    createSession,
+    switchSession,
+    deleteSession,
+    renameSession,
   }
 }
