@@ -1,18 +1,7 @@
 /**
  * AI 助手页面样式
+ * 高度约束已通过 App.vue 的 h-full min-h-0 传递给 AIAssistantPanel
  */
-
-.ai-assistant-page {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* 确保聊天区域占满整个页面 */
-.ai-assistant-page > * {
-  height: 100%;
-}
 
 /* 响应式调整 */
 @media (max-width: 768px) {

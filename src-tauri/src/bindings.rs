@@ -554,6 +554,73 @@ pub fn claw_get_port() -> Result<u16, String> {
     manager.port()
 }
 
+/// 获取 Claw Agent 认证 token
+#[tauri::command]
+pub fn claw_get_auth_token() -> Result<String, String> {
+    let guard = CLAW_AGENT_MANAGER.lock()
+        .map_err(|e| format!("获取锁失败: {}", e))?;
+
+    let manager = guard.as_ref()
+        .ok_or(s!("Claw Agent 未初始化").to_string())?;
+
+    Ok(manager.auth_token()?)
+}
+
+// ============================================================================
+// 安全配置命令
+// ============================================================================
+
+/// 安全配置结构
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SecurityConfigData {
+    pub allowed_paths: Vec<String>,
+}
+
+/// 读取安全配置
+#[tauri::command]
+pub fn security_read_config() -> Result<SecurityConfigData, String> {
+    let home = std::env::var("HOME")
+        .map_err(|_| s!("无法获取用户主目录").to_string())?;
+    let config_path = std::path::Path::new(&home)
+        .join(".openclaw")
+        .join("security.json");
+
+    if !config_path.exists() {
+        return Ok(SecurityConfigData {
+            allowed_paths: vec![],
+        });
+    }
+
+    let data = std::fs::read_to_string(&config_path)
+        .map_err(|e| format!("读取安全配置失败: {}", e))?;
+
+    let config: SecurityConfigData = serde_json::from_str(&data)
+        .map_err(|e| format!("解析安全配置失败: {}", e))?;
+
+    Ok(config)
+}
+
+/// 写入安全配置
+#[tauri::command]
+pub fn security_write_config(config: SecurityConfigData) -> Result<(), String> {
+    let home = std::env::var("HOME")
+        .map_err(|_| s!("无法获取用户主目录").to_string())?;
+    let openclaw_dir = std::path::Path::new(&home).join(".openclaw");
+
+    // 确保 ~/.openclaw 目录存在
+    std::fs::create_dir_all(&openclaw_dir)
+        .map_err(|e| format!("创建配置目录失败: {}", e))?;
+
+    let config_path = openclaw_dir.join("security.json");
+    let data = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("序列化安全配置失败: {}", e))?;
+
+    std::fs::write(&config_path, data)
+        .map_err(|e| format!("写入安全配置失败: {}", e))?;
+
+    Ok(())
+}
+
 // ============================================================================
 // OpenClaw 配置工具命令
 // ============================================================================

@@ -21,4 +21,5 @@ type LoopConfig struct {
 	ToolDefinitions []aitypes.ToolDefinition
 	System          string
 	Interrupt       <-chan struct{}
+	AskApproval     AskApprovalFunc // 工具执行审批回调，nil 时自动放行
 }

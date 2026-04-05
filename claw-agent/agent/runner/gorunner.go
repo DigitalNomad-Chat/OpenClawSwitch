@@ -17,6 +17,7 @@ import (
 	"claw-agent/ai/registry"
 	aitypes "claw-agent/ai/types"
 	"claw-agent/memory"
+	"claw-agent/security"
 )
 
 const maxToolIterations = 40
@@ -26,23 +27,27 @@ type GoRunnerConfig struct {
 	API         string // provider key: "anthropic", "openai"
 	Model       string // e.g. "claude-sonnet-4-20250514"
 	APIKey      string
-	BaseURL     string        // optional provider base URL override
-	WorkDir     string        // working directory for tool execution
-	Workspace   string        // workspace dir for skills/memory (e.g. ~/.claw/workspace)
-	AnnaHome    string        // anna home directory (e.g. ~/.claw)
-	MemoryStore *memory.Store // persistent memory (soul, user, facts, journal)
-	System      string        // optional system prompt override (bypasses BuildSystemPrompt)
-	ExtraTools  []tool.Tool   // additional tools to register
+	BaseURL     string              // optional provider base URL override
+	WorkDir     string              // working directory for tool execution
+	Workspace   string              // workspace dir for skills/memory (e.g. ~/.claw/workspace)
+	AnnaHome    string              // anna home directory (e.g. ~/.claw)
+	MemoryStore *memory.Store       // persistent memory (soul, user, facts, journal)
+	System      string              // optional system prompt override (bypasses BuildSystemPrompt)
+	ExtraTools     []tool.Tool                // additional tools to register
+	Broker         *security.ApprovalBroker  // approval broker for tool execution security
+	SecurityConfig *security.SecurityConfig  // user-defined security config (path whitelist)
 }
 
 // GoRunner implements Runner by calling LLM providers directly via Engine.
 type GoRunner struct {
-	eng    *engine.Engine
-	reg    *registry.Registry
-	tools  *tool.Registry
-	model  aitypes.Model
-	apiKey string
-	system string
+	eng      *engine.Engine
+	reg      *registry.Registry
+	tools    *tool.Registry
+	model    aitypes.Model
+	apiKey   string
+	system   string
+	broker   *security.ApprovalBroker
+	policy   *security.SecurityPolicy
 
 	mu           sync.Mutex
 	lastActivity time.Time
@@ -80,6 +85,15 @@ func NewGoRunner(_ context.Context, cfg GoRunnerConfig) (*GoRunner, error) {
 		tools.Register(t)
 	}
 
+	// 构建安全策略（合并用户自定义路径白名单）
+	var policy *security.SecurityPolicy
+	if cfg.Broker != nil {
+		policy = security.NewSecurityPolicy(cfg.Broker, cfg.WorkDir)
+		if cfg.SecurityConfig != nil {
+			policy.PathPolicy = cfg.SecurityConfig.MergeToPolicy(policy.PathPolicy)
+		}
+	}
+
 	return &GoRunner{
 		eng:          &engine.Engine{Providers: reg},
 		reg:          reg,
@@ -87,6 +101,8 @@ func NewGoRunner(_ context.Context, cfg GoRunnerConfig) (*GoRunner, error) {
 		model:        aitypes.Model{API: cfg.API, Name: cfg.Model},
 		apiKey:       cfg.APIKey,
 		system:       system,
+		broker:       cfg.Broker,
+		policy:       policy,
 		lastActivity: time.Now(),
 		log:          slog.With("component", "go_runner"),
 	}, nil
@@ -113,6 +129,7 @@ func (r *GoRunner) Chat(ctx context.Context, history []RPCEvent, message Message
 			Tools:           r.buildToolSet(),
 			ToolDefinitions: r.tools.Definitions(),
 			System:          r.system,
+			AskApproval:     r.buildAskApproval(out),
 		}
 
 		if _, err := r.eng.Run(ctx, cfg, messages, func(e engine.LoopEvent) {
@@ -151,6 +168,59 @@ func (r *GoRunner) buildToolSet() engine.ToolSet {
 		}
 	}
 	return set
+}
+
+// buildAskApproval 构建工具执行审批回调
+// 如果安全策略未配置，返回 nil（所有工具自动放行）
+func (r *GoRunner) buildAskApproval(out chan<- Event) engine.AskApprovalFunc {
+	if r.policy == nil || r.broker == nil {
+		return nil
+	}
+
+	return func(ctx context.Context, call aitypes.ToolCall) (bool, error) {
+		decision := r.policy.Evaluate(call.Name, call.Arguments)
+
+		switch decision {
+		case security.AutoAllow:
+			r.log.Debug("tool auto-allowed", "tool", call.Name)
+			return true, nil
+
+		case security.AutoDeny:
+			r.log.Warn("tool auto-denied", "tool", call.Name)
+			return false, fmt.Errorf("工具 %s 被安全策略自动拒绝", call.Name)
+
+		case security.AskUser:
+			// 构建审批请求
+			req := security.ApprovalRequest{
+				ID:    r.broker.NextID(),
+				Tool:  call.Name,
+				Input: summarizeToolInput(call.Name, call.Arguments),
+				Args:  call.Arguments,
+				Risk:  r.policy.RiskLevel(call.Name, call.Arguments),
+			}
+
+			// 发送审批请求事件到前端
+			out <- Event{
+				ApprovalRequest: &ApprovalRequestEvent{
+					ApprovalID: req.ID,
+					Tool:       req.Tool,
+					Input:      req.Input,
+					Risk:       req.Risk,
+					Args:       req.Args,
+				},
+			}
+
+			// 阻塞等待用户响应
+			result, err := r.broker.Ask(ctx, req)
+			if err != nil {
+				return false, err
+			}
+
+			return result.Approved, nil
+		}
+
+		return true, nil
+	}
 }
 
 // convertLoopEvent bridges engine.LoopEvent to Event(s).

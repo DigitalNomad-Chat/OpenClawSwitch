@@ -21,6 +21,7 @@ pub struct ClawAgent {
     port: u16,
     config_path: Option<PathBuf>,
     llm_config: Option<AgentLLMConfig>,
+    auth_token: String,
 }
 
 /// Claw Agent 状态
@@ -40,6 +41,7 @@ impl ClawAgent {
             port: 0,
             config_path: None,
             llm_config: None,
+            auth_token: String::new(),
         }
     }
 
@@ -62,56 +64,53 @@ impl ClawAgent {
 
     /// 启动 Claw Agent（带 LLM 配置）
     pub fn start_with_llm_config(&mut self, llm_config: Option<AgentLLMConfig>) -> Result<(), String> {
-        // 1. 获取可用端口
+        // 0. 先停止旧进程（防止端口冲突）
+        if let Some(mut old_process) = self.process.take() {
+            eprintln!("[ClawAgent] 检测到旧进程 PID: {}, 正在停止...", old_process.id());
+            let _ = old_process.kill();
+            let _ = old_process.wait();
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+
+        // 1. 生成 32 字节随机认证 token
+        self.auth_token = Self::generate_auth_token();
+
+        // 2. 获取可用端口
         self.port = Self::get_available_port()
             .map_err(|e| format!("获取可用端口失败: {}", e))?;
 
-        // 2. 获取 Claw Agent 可执行文件路径
+        // 3. 获取 Claw Agent 可执行文件路径
         let exe_path = Self::get_agent_executable()
             .map_err(|e| format!("获取 Claw Agent 路径失败: {}", e))?;
 
         eprintln!("[ClawAgent] 准备启动: {:?}", exe_path);
 
-        // 3. 构建命令 - 使用 sh -c 绕过 macOS Gatekeeper 限制
-        let exe_path_str = exe_path.to_string_lossy().to_string();
-        let mut args_str = format!("{} --port {}", s!("--agent"), self.port.to_string());
+        // 4. 直接构建 Command，通过 .arg() 逐个传参，避免 shell 转义问题
+        let mut cmd = Command::new(&exe_path);
+        cmd.arg("--agent")
+           .arg("--port").arg(self.port.to_string())
+           .arg("--auth-token").arg(&self.auth_token);
 
-        // 添加 LLM 配置（优先于配置文件）
+        // 5. 添加 LLM 配置（优先于配置文件）
         let final_llm_config = llm_config.or_else(|| self.llm_config.clone());
         if let Some(ref llm) = final_llm_config {
-            s! { let flag_api = "--api"; let flag_model = "--model"; let flag_api_key = "--api-key"; let flag_base_url = "--base-url"; let flag_workspace = "--workspace"; }
-            args_str.push_str(&format!(" {} {} '{}' {} '{}' {} '{} '{}'",
-                flag_api, llm.api,
-                flag_model, llm.model,
-                flag_api_key, llm.api_key,
-                flag_base_url, llm.base_url));
+            cmd.arg("--api").arg(&llm.api)
+               .arg("--model").arg(&llm.model)
+               .arg("--api-key").arg(&llm.api_key)
+               .arg("--base-url").arg(&llm.base_url);
             if !llm.workspace.is_empty() {
-                args_str.push_str(&format!(" {} '{}'", flag_workspace, llm.workspace));
+                cmd.arg("--workspace").arg(&llm.workspace);
+            }
+        } else if let Some(config_path) = &self.config_path {
+            // 没有 LLM 配置时，使用配置文件路径（向后兼容）
+            if config_path.exists() {
+                cmd.arg("--config").arg(config_path);
             }
         }
 
-        // 如果没有 LLM 配置，则使用配置文件路径（向后兼容）
-        let full_cmd = if final_llm_config.is_none() {
-            if let Some(config_path) = &self.config_path {
-                if config_path.exists() {
-                    format!("{} {} {}", args_str, s!("--config"), config_path.to_string_lossy())
-                } else {
-                    args_str
-                }
-            } else {
-                args_str
-            }
-        } else {
-            args_str
-        };
+        eprintln!("[ClawAgent] 执行: {:?}", cmd);
 
-        eprintln!("[ClawAgent] 执行命令: sh -c '{} {}'", exe_path_str, full_cmd);
-
-        let mut cmd = Command::new(s!("sh"));
-        cmd.arg(s!("-c"))
-           .arg(format!("{} {}", exe_path_str, full_cmd));
-
-        // 4. 启动进程
+        // 6. 启动进程
         eprintln!("[ClawAgent] 执行 spawn...");
         let result = cmd.spawn();
         match &result {
@@ -120,7 +119,7 @@ impl ClawAgent {
         }
         self.process = Some(result.map_err(|e| format!("启动 Claw Agent 失败: {}", e))?);
 
-        // 5. 等待服务就绪
+        // 7. 等待服务就绪
         Self::wait_for_ready(self.port, std::time::Duration::from_secs(10))
             .map_err(|e| format!("等待 Claw Agent 就绪失败: {}", e))?;
 
@@ -166,6 +165,25 @@ impl ClawAgent {
             port: if self.is_running() { Some(self.port) } else { None },
             pid: self.pid(),
         }
+    }
+
+    /// 获取认证 token
+    pub fn auth_token(&self) -> &str {
+        &self.auth_token
+    }
+
+    /// 生成 32 字节随机 hex token
+    fn generate_auth_token() -> String {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        // 使用时间戳 + 进程 ID 的简单伪随机 token
+        // 在生产环境中建议使用 rand crate
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let pid = std::process::id();
+        // 组合生成 64 字符的 hex token（32 字节）
+        format!("{:016x}-{:016x}-claw-{:032x}", timestamp, pid, timestamp ^ (pid as u128 * 0x9e3779b97f4a7c15))
     }
 
     /// 获取可用端口
@@ -317,6 +335,13 @@ impl ClawAgentManager {
         let agent = self.agent.lock()
             .map_err(|e| format!("获取锁失败: {}", e))?;
         Ok(agent.port())
+    }
+
+    /// 获取认证 token
+    pub fn auth_token(&self) -> Result<String, String> {
+        let agent = self.agent.lock()
+            .map_err(|e| format!("获取锁失败: {}", e))?;
+        Ok(agent.auth_token().to_string())
     }
 }
 

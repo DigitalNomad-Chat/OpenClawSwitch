@@ -32,16 +32,17 @@ export interface Session {
 // WebSocket 请求消息
 export interface ClawRequest {
   id: string
-  type: 'chat' | 'status' | 'config'
+  type: 'chat' | 'status' | 'config' | 'tool_approval_response'
   sessionId: string
   content?: string
+  data?: Record<string, any>
   timestamp: number
 }
 
 // WebSocket 响应消息
 export interface ClawResponse {
   id?: string
-  type: 'delta' | 'done' | 'error' | 'tool' | 'status'
+  type: 'delta' | 'done' | 'error' | 'tool' | 'status' | 'tool_approval_request'
   sessionId: string
   data?: Record<string, any>
   timestamp: number
@@ -49,11 +50,10 @@ export interface ClawResponse {
 
 // 工具执行事件
 export interface ToolEvent {
-  type: 'tool_start' | 'tool_done' | 'tool_error'
   tool: string
-  input?: any
-  output?: any
-  error?: string
+  status: 'running' | 'done' | 'error'
+  detail?: string
+  input?: string
 }
 
 // 连接状态
@@ -125,4 +125,13 @@ export interface ValidationResult {
 export interface OperationResult {
   success: boolean
   message: string
+}
+
+// 工具审批请求状态
+export interface ToolApprovalState {
+  approvalId: string
+  tool: string
+  input: string
+  risk: 'low' | 'medium' | 'high'
+  status: 'pending' | 'approved' | 'rejected' | 'timeout'
 }

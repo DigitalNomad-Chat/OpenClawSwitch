@@ -432,7 +432,7 @@ fn upsert_provider(
     mut config: Value,
     name: String,
     base_url: String,
-    api_key: Option<String>,
+    api_key: Option<Value>,
     api: Option<String>,
 ) -> Result<Value, String> {
     // 确保 models.providers 结构存在
@@ -454,9 +454,16 @@ fn upsert_provider(
     provider["baseUrl"] = json!(base_url);
 
     // 更新可选字段（仅当提供时）
+    // api_key 支持 string（明文）和 object（ApiKeyConfig）两种格式
     if let Some(key) = api_key {
-        if !key.is_empty() {
-            provider["apiKey"] = json!(key);
+        match key {
+            Value::String(s) if !s.is_empty() => {
+                provider["apiKey"] = json!(s);
+            }
+            Value::Object(obj) if !obj.is_empty() => {
+                provider["apiKey"] = json!(obj);
+            }
+            _ => {}
         }
     }
 
@@ -1006,6 +1013,9 @@ fn main() {
             bindings::claw_stop_agent,
             bindings::claw_get_status,
             bindings::claw_get_port,
+            bindings::claw_get_auth_token,
+            bindings::security_read_config,
+            bindings::security_write_config,
             // Claw Config
             claw_config::claw_read_config,
             claw_config::claw_write_config,
@@ -1023,6 +1033,7 @@ fn main() {
             llm_config::llm_set_active,
             llm_config::llm_get_active_config,
             llm_config::llm_test_connection,
+            llm_config::llm_discover_openclaw_providers,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

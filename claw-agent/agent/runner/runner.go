@@ -61,6 +61,15 @@ type ToolUseEvent struct {
 	Detail string // error detail or result summary (for "error" status)
 }
 
+// ApprovalRequestEvent 表示需要用户审批的工具调用请求
+type ApprovalRequestEvent struct {
+	ApprovalID string         // 审批请求唯一标识
+	Tool       string         // 工具名称
+	Input      string         // 工具输入摘要
+	Risk       string         // 风险等级: "low", "medium", "high"
+	Args       map[string]any // 原始参数
+}
+
 // ImageEvent carries a base64-encoded image to be sent to the channel.
 type ImageEvent struct {
 	Data     string // base64 encoded
@@ -70,11 +79,12 @@ type ImageEvent struct {
 // Event is the consumer-facing stream event. Channels read these from the
 // stream returned by Pool.Chat().
 type Event struct {
-	Text    string
-	Image   *ImageEvent
-	ToolUse *ToolUseEvent
-	Store   *RPCEvent // if set, Pool appends to session history
-	Err     error
+	Text            string
+	Image           *ImageEvent
+	ToolUse         *ToolUseEvent
+	ApprovalRequest *ApprovalRequestEvent // if set, server should send approval request to client
+	Store           *RPCEvent             // if set, Pool appends to session history
+	Err             error
 }
 
 // MessageContent is the type for user messages passed through the runner pipeline.

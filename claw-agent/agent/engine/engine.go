@@ -101,6 +101,7 @@ func (e *Engine) runLoop(ctx context.Context, cfg LoopConfig, history []aitypes.
 					emit(ToolFinished{Result: result})
 				}
 			},
+			AskApproval: cfg.AskApproval,
 		})
 		if err != nil {
 			return history, err
