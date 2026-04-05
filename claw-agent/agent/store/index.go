@@ -60,6 +60,11 @@ func (c *indexCache) loadLocked() error {
 			continue // skip malformed lines
 		}
 		if info.ID != "" {
+			// Tombstone entries (sentinel title) remove the key from cache.
+			if info.Title == "\x00_tombstone" {
+				delete(c.entries, info.ID)
+				continue
+			}
 			c.entries[info.ID] = info
 		}
 	}
@@ -107,6 +112,37 @@ func (c *indexCache) get(sessionID string) (SessionInfo, bool) {
 	defer c.mu.RUnlock()
 	info, ok := c.entries[sessionID]
 	return info, ok
+}
+
+// remove deletes a session from the in-memory cache and appends a tombstone
+// to the index file so the entry is effectively removed on next load.
+func (c *indexCache) remove(sessionID string) error {
+	if err := c.load(); err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	delete(c.entries, sessionID)
+
+	// Write a tombstone entry so that previous lines for this ID are ignored.
+	tombstone := SessionInfo{ID: sessionID, Archived: true, Title: "\x00_tombstone"}
+	data, err := json.Marshal(tombstone)
+	if err != nil {
+		return fmt.Errorf("marshal tombstone: %w", err)
+	}
+
+	f, err := os.OpenFile(c.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o644)
+	if err != nil {
+		return fmt.Errorf("open index for append: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	if _, err := f.Write(append(data, '\n')); err != nil {
+		return fmt.Errorf("write tombstone: %w", err)
+	}
+	return nil
 }
 
 // list returns all session metadata, optionally filtering out archived sessions.

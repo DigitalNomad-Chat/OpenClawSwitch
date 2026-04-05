@@ -275,6 +275,55 @@ func (p *Pool) ArchiveSession(sessionID string) error {
 	return nil
 }
 
+// DeleteSession archives a session and permanently removes its persisted data.
+func (p *Pool) DeleteSession(sessionID string) error {
+	if err := p.ArchiveSession(sessionID); err != nil {
+		p.log.Warn("archive failed during delete", "session_id", sessionID, "error", err)
+	}
+	if p.store != nil {
+		if err := p.store.Delete(sessionID); err != nil {
+			return fmt.Errorf("delete session data: %w", err)
+		}
+	}
+	p.log.Info("session deleted", "session_id", sessionID)
+	return nil
+}
+
+// RenameSession updates the title of a session.
+func (p *Pool) RenameSession(sessionID, title string) error {
+	p.mu.Lock()
+	sess, ok := p.sessions[sessionID]
+	if ok {
+		sess.Info.Title = title
+		info := sess.Info
+		p.mu.Unlock()
+		return p.persistRename(info, title)
+	}
+	p.mu.Unlock()
+
+	// Session not in memory — try loading from store.
+	if p.store != nil {
+		info, err := p.store.LoadInfo(sessionID)
+		if err != nil {
+			return fmt.Errorf("session %q not found: %w", sessionID, err)
+		}
+		return p.persistRename(info, title)
+	}
+	return fmt.Errorf("session %q not found", sessionID)
+}
+
+// persistRename saves the renamed session metadata.
+func (p *Pool) persistRename(info SessionInfo, title string) error {
+	info.Title = title
+	if p.store != nil {
+		if err := p.store.SaveInfo(info); err != nil {
+			return fmt.Errorf("save session info: %w", err)
+		}
+	}
+	p.log.Info("session renamed", "session_id", info.ID, "title", title)
+	return nil
+}
+
 // compactionPrompt is sent to the runner to generate a conversation summary
 // that replaces old history. Based on the handoff pattern — the summary must
 // be self-contained so the runner can continue without the original context.

@@ -316,13 +316,16 @@ func (s *FileStore) Load(sessionID string) ([]runner.RPCEvent, error) {
 	return events, nil
 }
 
-// Delete removes the session file.
+// Delete removes the session file, its index entry, and cached parent ID.
 func (s *FileStore) Delete(sessionID string) error {
 	p := s.resolve(sessionID)
-	if p == "" {
-		return nil
+	if p != "" {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove session file: %w", err)
+		}
 	}
-	return os.Remove(p)
+	delete(s.lastParentID, sessionID)
+	return s.index.remove(sessionID)
 }
 
 // List returns session IDs for all stored sessions.

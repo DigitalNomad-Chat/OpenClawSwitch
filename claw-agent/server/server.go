@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -197,6 +198,16 @@ func (s *Server) handleRequest(ctx context.Context, conn *websocket.Conn, req Re
 		s.handleStatus(conn, req)
 	case "tool_approval_response":
 		s.handleApprovalResponse(conn, req)
+	case "list_sessions":
+		s.handleListSessions(conn, req)
+	case "create_session":
+		s.handleCreateSession(conn, req)
+	case "switch_session":
+		s.handleSwitchSession(conn, req)
+	case "delete_session":
+		s.handleDeleteSession(conn, req)
+	case "rename_session":
+		s.handleRenameSession(conn, req)
 	default:
 		s.sendError(conn, req.ID, fmt.Sprintf("unknown request type: %s", req.Type))
 	}
@@ -354,6 +365,197 @@ func (s *Server) handleApprovalResponse(conn *websocket.Conn, req Request) {
 	}
 
 	log.Printf("Approval resolved: id=%s, approved=%v", approvalID, approved)
+}
+
+// handleListSessions 列出所有非归档会话
+func (s *Server) handleListSessions(conn *websocket.Conn, req Request) {
+	sessions, err := s.pool.ListSessions(false)
+	if err != nil {
+		s.sendError(conn, req.ID, err.Error())
+		return
+	}
+
+	s.sendResponse(conn, Response{
+		ID:        req.ID,
+		Type:      "session_list",
+		SessionID: req.SessionID,
+		Data: map[string]interface{}{
+			"sessions": sessions,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	})
+}
+
+// handleCreateSession 创建新会话
+func (s *Server) handleCreateSession(conn *websocket.Conn, req Request) {
+	info, err := s.pool.CreateSession("cli")
+	if err != nil {
+		s.sendError(conn, req.ID, err.Error())
+		return
+	}
+
+	s.sendResponse(conn, Response{
+		ID:        req.ID,
+		Type:      "session_created",
+		Data: map[string]interface{}{
+			"session": info,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	})
+}
+
+// handleSwitchSession 切换会话并加载历史消息
+func (s *Server) handleSwitchSession(conn *websocket.Conn, req Request) {
+	sessionID := req.SessionID
+	if sessionID == "" {
+		s.sendError(conn, req.ID, "sessionId is required")
+		return
+	}
+
+	// Verify session exists before switching
+	if _, err := s.pool.GetSession(sessionID); err != nil {
+		s.sendError(conn, req.ID, fmt.Sprintf("session %q not found", sessionID))
+		return
+	}
+
+	events := s.pool.History(sessionID)
+
+	log.Printf("[switch_session] sessionID=%q, events=%d", sessionID, len(events))
+
+	// Convert RPCEvent → frontend Message format.
+	// In-memory events contain TextDelta RPCEventMessageUpdate entries (Summary="",
+	// AssistantMessageEvent has delta text). We must aggregate consecutive deltas
+	// into a single assistant message, just like the frontend does during streaming.
+	type assistantAccum struct {
+		id      string
+		content strings.Builder
+	}
+	var messages []map[string]interface{}
+	var accum *assistantAccum
+
+	flushAccum := func() {
+		if accum == nil {
+			return
+		}
+		text := accum.content.String()
+		if text != "" {
+			messages = append(messages, map[string]interface{}{
+				"id":        accum.id,
+				"role":      "assistant",
+				"content":   text,
+				"timestamp": time.Now().UnixMilli(),
+				"status":    "done",
+			})
+		}
+		accum = nil
+	}
+
+	for _, evt := range events {
+		switch evt.Type {
+		case runner.RPCEventUserMessage:
+			flushAccum()
+			messages = append(messages, map[string]interface{}{
+				"id":        evt.ID,
+				"role":      "user",
+				"content":   evt.Summary,
+				"timestamp": time.Now().UnixMilli(),
+				"status":    "done",
+			})
+
+		case runner.RPCEventMessageUpdate:
+			if evt.Summary != "" {
+				// Complete assistant message (from AssistantMessageToRPCEvent or disk Load)
+				flushAccum()
+				messages = append(messages, map[string]interface{}{
+					"id":        evt.ID,
+					"role":      "assistant",
+					"content":   evt.Summary,
+					"timestamp": time.Now().UnixMilli(),
+					"status":    "done",
+				})
+			} else if len(evt.AssistantMessageEvent) > 0 {
+				// Text delta (from TextDeltaToRPCEvent) — extract delta and accumulate
+				var inner runner.AssistantMessageEvent
+				if json.Unmarshal(evt.AssistantMessageEvent, &inner) == nil && inner.Delta != "" {
+					if accum == nil {
+						accum = &assistantAccum{id: evt.ID}
+					}
+					accum.content.WriteString(inner.Delta)
+				}
+			}
+
+		case runner.RPCEventToolCall, runner.RPCEventToolResult:
+			// Tool events break the assistant message stream
+			flushAccum()
+
+		default:
+			// tool_start, tool_end, agent_end — skip
+		}
+	}
+	flushAccum()
+
+	s.sendResponse(conn, Response{
+		ID:        req.ID,
+		Type:      "session_switched",
+		SessionID: sessionID,
+		Data: map[string]interface{}{
+			"sessionId": sessionID,
+			"messages":  messages,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	})
+}
+
+// handleDeleteSession 删除会话（归档 + 删除持久化数据）
+func (s *Server) handleDeleteSession(conn *websocket.Conn, req Request) {
+	sessionID := req.SessionID
+	if sessionID == "" {
+		s.sendError(conn, req.ID, "sessionId is required")
+		return
+	}
+
+	if err := s.pool.DeleteSession(sessionID); err != nil {
+		s.sendError(conn, req.ID, err.Error())
+		return
+	}
+
+	s.sendResponse(conn, Response{
+		ID:        req.ID,
+		Type:      "session_deleted",
+		Data: map[string]interface{}{
+			"sessionId": sessionID,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	})
+}
+
+// handleRenameSession 重命名会话
+func (s *Server) handleRenameSession(conn *websocket.Conn, req Request) {
+	sessionID := req.SessionID
+	if sessionID == "" {
+		s.sendError(conn, req.ID, "sessionId is required")
+		return
+	}
+	title, _ := req.Data["title"].(string)
+	if title == "" {
+		s.sendError(conn, req.ID, "title is required")
+		return
+	}
+
+	if err := s.pool.RenameSession(sessionID, title); err != nil {
+		s.sendError(conn, req.ID, err.Error())
+		return
+	}
+
+	s.sendResponse(conn, Response{
+		ID:        req.ID,
+		Type:      "session_renamed",
+		Data: map[string]interface{}{
+			"sessionId": sessionID,
+			"title":     title,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	})
 }
 
 // handleHealth 处理健康检查
