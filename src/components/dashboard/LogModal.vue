@@ -104,7 +104,7 @@ const startService = async () => {
   if (serviceActionLoading.value) return
   serviceActionLoading.value = 'start'
   try {
-    await invoke('start_openclaw_service')
+    await invoke('start_gateway')
     appendLog({
       message: '[操作] 正在启动服务...',
       level: 'info',
