@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { cn } from '@/lib/utils'
-import { Trash2, Star, Shield, ChevronDown, ChevronUp, Cpu, Brain, Zap, Plus, X, Pencil, Server } from 'lucide-vue-next'
+import { Trash2, Star, Shield, ChevronDown, ChevronUp, Cpu, Brain, Zap, Plus, X, Pencil, Server, Clipboard } from 'lucide-vue-next'
 import Button from './ui/Button.vue'
 import type { ProviderInfo, ModelInfo } from '@/types/config'
 
@@ -22,6 +22,7 @@ const emit = defineEmits<{
   removeModel: [providerName: string, modelId: string]
   edit: []
   delete: []
+  copyCommand: [command: string]
 }>()
 
 const showModels = ref(false)
@@ -45,6 +46,26 @@ const handleSetPrimary = (model?: ModelInfo) => {
 const handleSetFallback = (model?: ModelInfo) => {
   const modelId = model?.id || 'default'
   emit('setFallback', `${props.provider.name}/${modelId}`)
+}
+
+const handleCopySwitch = async (model?: ModelInfo) => {
+  const modelId = model?.id || 'default'
+  const command = `/model ${props.provider.name}/${modelId}`
+  try {
+    await navigator.clipboard.writeText(command)
+    emit('copyCommand', command)
+  } catch {
+    // fallback: textarea copy
+    const ta = document.createElement('textarea')
+    ta.value = command
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    emit('copyCommand', command)
+  }
 }
 </script>
 
@@ -106,15 +127,30 @@ const handleSetFallback = (model?: ModelInfo) => {
                 <div class="truncate" style="color: var(--oc-text-muted);">{{ model.id }}</div>
               </div>
               <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" size="sm" @click="handleSetPrimary(model)" title="主要" class="h-6 w-6 p-0">
-                  <Star class="w-3 h-3" />
-                </Button>
-                <Button variant="ghost" size="sm" @click="handleSetFallback(model)" title="备用" class="h-6 w-6 p-0">
-                  <Shield class="w-3 h-3" />
-                </Button>
-                <Button variant="ghost" size="sm" @click="handleRemoveModel(model.id)" title="删除" class="h-6 w-6 p-0" style="color: var(--oc-danger);">
-                  <X class="w-3 h-3" />
-                </Button>
+                <span class="oc-tooltip-wrap">
+                  <Button variant="ghost" size="sm" @click="handleSetPrimary(model)" class="h-6 w-6 p-0">
+                    <Star class="w-3 h-3" />
+                  </Button>
+                  <span class="oc-tooltip">设为主要模型</span>
+                </span>
+                <span class="oc-tooltip-wrap">
+                  <Button variant="ghost" size="sm" @click="handleSetFallback(model)" class="h-6 w-6 p-0">
+                    <Shield class="w-3 h-3" />
+                  </Button>
+                  <span class="oc-tooltip">设为备用模型</span>
+                </span>
+                <span class="oc-tooltip-wrap">
+                  <Button variant="ghost" size="sm" @click="handleCopySwitch(model)" class="h-6 w-6 p-0">
+                    <Clipboard class="w-3 h-3" />
+                  </Button>
+                  <span class="oc-tooltip">复制 /model 切换命令</span>
+                </span>
+                <span class="oc-tooltip-wrap">
+                  <Button variant="ghost" size="sm" @click="handleRemoveModel(model.id)" class="h-6 w-6 p-0" style="color: var(--oc-danger);">
+                    <X class="w-3 h-3" />
+                  </Button>
+                  <span class="oc-tooltip">删除模型</span>
+                </span>
               </div>
             </div>
 
@@ -192,5 +228,35 @@ const handleSetFallback = (model?: ModelInfo) => {
   box-shadow:
     0 4px 12px color-mix(in srgb, var(--primary-500) 45%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* 自定义 Tooltip */
+.oc-tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.oc-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--oc-text-primary);
+  background: var(--oc-card);
+  border: 1px solid var(--oc-divider);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 30;
+}
+
+.oc-tooltip-wrap:hover .oc-tooltip {
+  opacity: 1;
 }
 </style>

@@ -426,6 +426,174 @@ fn set_fallback_models(mut config: Value, fallbacks: Vec<String>) -> Result<Valu
     Ok(config)
 }
 
+/// 获取所有 Agent 的模型配置列表
+#[tauri::command]
+fn get_agent_model_list(config: Value) -> Result<Vec<Value>, String> {
+    let agents = config
+        .get("agents")
+        .and_then(|a| a.get("list"))
+        .and_then(|l| l.as_array())
+        .ok_or("agents.list 不存在或格式错误")?;
+
+    let mut result = Vec::new();
+    for agent in agents {
+        let id = agent.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let name = agent
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or(&id)
+            .to_string();
+        let primary = agent
+            .get("model")
+            .and_then(|m| m.get("primary"))
+            .and_then(|p| p.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        result.push(json!({
+            "id": id,
+            "name": name,
+            "primary": primary,
+        }));
+    }
+
+    // 按 id 排序
+    result.sort_by(|a, b| {
+        a.get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .cmp(b.get("id").and_then(|v| v.as_str()).unwrap_or(""))
+    });
+
+    Ok(result)
+}
+
+/// 设置单个 Agent 的默认模型
+#[tauri::command]
+fn set_agent_model(mut config: Value, agent_id: String, model_path: String) -> Result<Value, String> {
+    let agents = config
+        .get_mut("agents")
+        .and_then(|a| a.get_mut("list"))
+        .and_then(|l| l.as_array_mut())
+        .ok_or("agents.list 不存在或格式错误")?;
+
+    let mut found = false;
+    for agent in agents.iter_mut() {
+        let id = agent.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        if id == agent_id {
+            if agent.get("model").is_none() {
+                agent["model"] = json!({});
+            }
+            agent["model"]["primary"] = json!(model_path);
+            found = true;
+            break;
+        }
+    }
+
+    if !found {
+        return Err(format!("Agent '{}' 不存在", agent_id));
+    }
+
+    Ok(config)
+}
+
+/// 批量设置所有 Agent 的默认模型
+#[tauri::command]
+fn batch_set_agent_models(mut config: Value, model_path: String) -> Result<Value, String> {
+    let list_path = ["agents", "list"];
+
+    // 使用 index_mut 避免借用链问题
+    let agents = config
+        .get_mut(&list_path[0])
+        .and_then(|a| a.get_mut(&list_path[1]))
+        .and_then(|l| l.as_array_mut())
+        .ok_or("agents.list 不存在或格式错误")?;
+
+    for agent in agents.iter_mut() {
+        if agent.get("model").is_none() {
+            agent["model"] = json!({});
+        }
+        agent["model"]["primary"] = json!(model_path.clone());
+    }
+
+    Ok(config)
+}
+
+// ============================================================================
+// 快捷模型管理
+// ============================================================================
+
+/// 快捷模型条目
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct QuickModelEntry {
+    path: String,
+    label: String,
+}
+
+/// 快捷模型配置
+#[derive(serde::Serialize, serde::Deserialize)]
+struct QuickModelsConfig {
+    version: u32,
+    models: Vec<QuickModelEntry>,
+}
+
+fn quick_models_path() -> Result<std::path::PathBuf, String> {
+    let dir = dirs::home_dir()
+        .ok_or("无法获取用户主目录")?
+        .join(".openclawswitch");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败: {}", e))?;
+    }
+    Ok(dir.join("quick-models.json"))
+}
+
+/// 读取快捷模型列表
+#[tauri::command]
+fn read_quick_models() -> Result<Vec<Value>, String> {
+    let path = quick_models_path()?;
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+    let content = std::fs::read_to_string(&path).map_err(|e| format!("读取快捷模型配置失败: {}", e))?;
+    let config: QuickModelsConfig =
+        serde_json::from_str(&content).unwrap_or(QuickModelsConfig {
+            version: 1,
+            models: vec![],
+        });
+    Ok(config
+        .models
+        .into_iter()
+        .map(|m| json!({ "path": m.path, "label": m.label }))
+        .collect())
+}
+
+/// 写入快捷模型列表
+#[tauri::command]
+fn write_quick_models(models: Vec<Value>) -> Result<(), String> {
+    let path = quick_models_path()?;
+    let entries: Vec<QuickModelEntry> = models
+        .into_iter()
+        .filter_map(|m| {
+            let path = m.get("path")?.as_str()?.to_string();
+            let label = m
+                .get("label")
+                .and_then(|l| l.as_str())
+                .unwrap_or(&path)
+                .to_string();
+            if path.is_empty() {
+                None
+            } else {
+                Some(QuickModelEntry { path, label })
+            }
+        })
+        .collect();
+    let config = QuickModelsConfig { version: 1, models: entries };
+    let content =
+        serde_json::to_string_pretty(&config).map_err(|e| format!("序列化失败: {}", e))?;
+    std::fs::write(&path, content).map_err(|e| format!("写入快捷模型配置失败: {}", e))?;
+    Ok(())
+}
+
 /// 添加或更新提供商
 #[tauri::command]
 fn upsert_provider(
@@ -896,6 +1064,11 @@ fn main() {
             get_model_selection,
             set_primary_model,
             set_fallback_models,
+            get_agent_model_list,
+            set_agent_model,
+            batch_set_agent_models,
+            read_quick_models,
+            write_quick_models,
             upsert_provider,
             import_provider,
             delete_provider,

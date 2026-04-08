@@ -11,7 +11,8 @@ import RemoteFileBrowser from '../RemoteFileBrowser.vue'
 import SshSaveConfirmModal from '../SshSaveConfirmModal.vue'
 import {
   Server, Settings, ListTree, Save, Download, Plus, X, ChevronDown, FolderOpen, FileCode,
-  RefreshCw, Terminal, Wrench, Hammer, Monitor
+  RefreshCw, Terminal, Wrench, Hammer, Monitor, Bot, Check, Info, ChevronRight,
+  Zap, Trash2, Clipboard
 } from 'lucide-vue-next'
 import type {
   OpenClawConfig, ProviderInfo, ModelSelectionInfo, ConfigFileInfo, ProviderPreset,
@@ -94,6 +95,23 @@ const newModelId = ref('')
 const availableModels = ref<string[]>([])
 const loadingModels = ref(false)
 const showModelDropdown = ref(false)
+
+// Agent 模型管理状态
+const activeTab = ref<'providers' | 'agents'>('providers')
+const agentList = ref<Array<{ id: string; name: string; primary: string }>>([])
+const agentListLoading = ref(false)
+const showAgentModelSelector = ref<string | null>(null)  // 当前打开选择器的 agent id
+const showBatchModelSelector = ref(false)
+const batchModelLoading = ref(false)
+
+// 全局模型配置折叠
+const showGlobalModelConfig = ref(true)
+
+// 快捷模型状态
+const quickModels = ref<Array<{ path: string; label: string }>>([])
+const showQuickModelSelector = ref(false)
+const quickModelsLoading = ref(false)
+const showGlobalModelHelp = ref(false)
 
 // ============================================================================
 // 计算属性
@@ -285,6 +303,136 @@ const refreshProviders = async () => {
   } catch (error) {
     console.error('刷新提供商列表失败:', error)
   }
+}
+
+// ============================================================================
+// Agent 模型管理
+// ============================================================================
+
+const loadAgentList = async () => {
+  if (!currentConfig.value) return
+  agentListLoading.value = true
+  try {
+    agentList.value = await invoke<Array<{ id: string; name: string; primary: string }>>('get_agent_model_list', {
+      config: currentConfig.value
+    })
+  } catch (error) {
+    console.error('加载 Agent 列表失败:', error)
+    props.showToast('error', '加载 Agent 列表失败')
+  } finally {
+    agentListLoading.value = false
+  }
+}
+
+const handleSetAgentModel = async (agentId: string, modelPath: string) => {
+  if (!currentConfig.value) return
+  try {
+    currentConfig.value = await invoke('set_agent_model', {
+      config: currentConfig.value,
+      agentId,
+      modelPath,
+    })
+    isDirty.value = true
+    showAgentModelSelector.value = null
+    // 更新本地列表
+    const agent = agentList.value.find(a => a.id === agentId)
+    if (agent) agent.primary = modelPath
+    props.showToast('success', `已将 ${agent?.name || agentId} 的默认模型设为 ${modelPath}`)
+    await autoSave()
+  } catch (error) {
+    props.showToast('error', `设置 Agent 模型失败: ${String(error)}`)
+  }
+}
+
+const handleBatchSetAgentModels = async (modelPath: string) => {
+  if (!currentConfig.value) return
+  batchModelLoading.value = true
+  try {
+    currentConfig.value = await invoke('batch_set_agent_models', {
+      config: currentConfig.value,
+      modelPath,
+    })
+    isDirty.value = true
+    showBatchModelSelector.value = false
+    // 更新本地列表
+    agentList.value.forEach(a => { a.primary = modelPath })
+    props.showToast('success', `已将所有 ${agentList.value.length} 个 Agent 的默认模型设为 ${modelPath}`)
+    await autoSave()
+  } catch (error) {
+    props.showToast('error', `批量设置失败: ${String(error)}`)
+  } finally {
+    batchModelLoading.value = false
+  }
+}
+
+// Agent 模型使用统计
+const agentModelStats = computed(() => {
+  const stats: Record<string, number> = {}
+  for (const agent of agentList.value) {
+    const model = agent.primary || '(未设置)'
+    stats[model] = (stats[model] || 0) + 1
+  }
+  return stats
+})
+
+const globalDefaultModel = computed(() => modelSelection.value.primary)
+
+const globalDefaultUnused = computed(() => {
+  if (!globalDefaultModel.value) return false
+  return !agentList.value.some(a => a.primary === globalDefaultModel.value)
+})
+
+// ============================================================================
+// 快捷模型管理
+// ============================================================================
+
+const loadQuickModels = async () => {
+  try {
+    quickModels.value = await invoke<Array<{ path: string; label: string }>>('read_quick_models')
+  } catch (error) {
+    console.error('加载快捷模型失败:', error)
+    quickModels.value = []
+  }
+}
+
+const saveQuickModels = async () => {
+  try {
+    await invoke('write_quick_models', { models: quickModels.value })
+  } catch (error) {
+    console.error('保存快捷模型失败:', error)
+  }
+}
+
+const addQuickModel = async (modelPath: string, modelLabel: string) => {
+  if (quickModels.value.some(m => m.path === modelPath)) {
+    props.showToast('error', '该模型已在快捷列表中')
+    return
+  }
+  quickModels.value.push({ path: modelPath, label: modelLabel })
+  showQuickModelSelector.value = false
+  await saveQuickModels()
+}
+
+const removeQuickModel = async (modelPath: string) => {
+  quickModels.value = quickModels.value.filter(m => m.path !== modelPath)
+  await saveQuickModels()
+}
+
+const copyQuickModelCommand = async (modelPath: string) => {
+  const command = `/model ${modelPath}`
+  try {
+    await navigator.clipboard.writeText(command)
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = command
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
+  props.showToast('success', `已复制: ${command}`)
 }
 
 const updateThinkingDefault = async (value: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'adaptive') => {
@@ -883,6 +1031,7 @@ const fillPreset = (preset: ProviderPreset) => {
 
 onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
+  await loadQuickModels()
   if (isExternalSsh.value) {
     // SSH 模式：复用已有连接，自动搜索远程配置
     sshConnected.value = true
@@ -894,6 +1043,13 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+})
+
+// 切换到 Agent Tab 时自动加载列表
+watch(activeTab, async (tab) => {
+  if (tab === 'agents' && agentList.value.length === 0) {
+    await loadAgentList()
+  }
 })
 
 // SSH 模式下自动搜索并加载远程默认配置
@@ -981,15 +1137,229 @@ const loadRemoteDefaultConfig = async () => {
           </div>
         </section>
 
-    <div class="min-h-0 flex-1 grid gap-3 lg:grid-cols-3">
-          <!-- 左侧：当前模型配置 -->
-          <Card v-if="currentConfig" class="min-h-0 overflow-hidden p-4 lg:col-span-1 flex flex-col">
-            <h3 class="text-sm font-semibold mb-3 flex items-center gap-2" style="color: var(--oc-text-primary);">
-              <ListTree class="w-4 h-4" style="color: var(--oc-accent);" />
-              模型配置
-            </h3>
+    <!-- Tab 切换 -->
+    <div v-if="currentConfig" class="flex-none flex gap-1 p-1 rounded-lg" style="background: var(--oc-card-elevated);">
+      <button
+        @click="activeTab = 'providers'"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+        :style="activeTab === 'providers'
+          ? 'background: var(--oc-card); color: var(--oc-text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08);'
+          : 'color: var(--oc-text-muted);'"
+      >
+        <Server class="w-3.5 h-3.5" />
+        服务商模型
+      </button>
+      <button
+        @click="activeTab = 'agents'"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+        :style="activeTab === 'agents'
+          ? 'background: var(--oc-card); color: var(--oc-text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08);'
+          : 'color: var(--oc-text-muted);'"
+      >
+        <Bot class="w-3.5 h-3.5" />
+        Agent 模型
+        <span class="px-1.5 py-0.5 rounded text-[10px] font-medium"
+              style="background: var(--oc-card-elevated); color: var(--oc-text-muted);">
+          {{ agentList.length || '–' }}
+        </span>
+      </button>
+    </div>
 
-            <div class="min-h-0 flex-1 overflow-y-auto pr-1">
+    <!-- Agent 模型管理面板 -->
+    <Card v-if="currentConfig && activeTab === 'agents'" class="min-h-0 flex-1 overflow-hidden p-4 flex flex-col">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-semibold flex items-center gap-2" style="color: var(--oc-text-primary);">
+          <Bot class="w-4 h-4" style="color: var(--oc-accent);" />
+          Agent 模型分配
+          <span v-if="agentList.length" class="text-xs font-normal" style="color: var(--oc-text-muted);">
+            ({{ agentList.length }} 个)
+          </span>
+        </h3>
+        <div class="relative">
+          <Button
+            variant="outline"
+            size="sm"
+            @click="showBatchModelSelector = !showBatchModelSelector"
+            :disabled="batchModelLoading || allAvailableModels.length === 0"
+            class="h-7 text-xs gap-1"
+          >
+            <Wrench class="w-3 h-3" />
+            全部设为
+          </Button>
+          <div v-if="showBatchModelSelector" class="oc-dropdown-menu absolute right-0 z-20 mt-1 w-64 max-h-56 overflow-auto">
+            <div v-for="model in allAvailableModels" :key="model.path"
+                 @click="handleBatchSetAgentModels(model.path)"
+                 class="oc-dropdown-item cursor-pointer text-sm">
+              <div class="font-medium truncate" style="color: var(--oc-text-primary);">{{ model.label }}</div>
+              <div class="text-xs truncate" style="color: var(--oc-text-muted);">{{ model.path }}</div>
+            </div>
+            <div v-if="allAvailableModels.length === 0" class="px-3 py-2 text-xs" style="color: var(--oc-text-muted);">
+              暂无可用模型
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 全局默认提示 -->
+      <div v-if="globalDefaultUnused" class="mb-3 px-3 py-2 rounded-lg text-xs" style="background: color-mix(in srgb, var(--oc-warning) 10%, var(--oc-card-elevated)); color: var(--oc-text-secondary);">
+        <span style="color: var(--oc-warning);">⚠</span>
+        全局默认 <code class="px-1 py-0.5 rounded" style="background: var(--oc-card-elevated);">{{ globalDefaultModel }}</code> 未被任何 Agent 使用
+      </div>
+
+      <!-- Agent 列表 -->
+      <div class="min-h-0 flex-1 overflow-y-auto">
+        <div v-if="agentListLoading" class="flex items-center justify-center py-8">
+          <RefreshCw class="w-4 h-4 animate-spin" style="color: var(--oc-text-muted);" />
+        </div>
+        <div v-else-if="agentList.length === 0" class="text-center py-8 text-xs" style="color: var(--oc-text-muted);">
+          暂无 Agent 配置
+        </div>
+        <div v-else class="space-y-1">
+          <div v-for="agent in agentList" :key="agent.id"
+               class="group flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs transition-colors"
+               style="border-color: var(--oc-divider-soft); background: color-mix(in srgb, var(--oc-card-elevated) 82%, transparent);">
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+              <Bot class="w-4 h-4 flex-shrink-0" style="color: var(--oc-text-muted);" />
+              <div class="min-w-0 flex-1">
+                <div class="font-medium truncate" style="color: var(--oc-text-primary);">{{ agent.name }}</div>
+                <div class="truncate" style="color: var(--oc-text-muted);">{{ agent.id }}</div>
+              </div>
+            </div>
+            <div class="relative flex items-center gap-1.5 flex-shrink-0">
+              <span class="truncate max-w-[180px]" style="color: var(--oc-accent);">
+                {{ agent.primary || '(未设置)' }}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                @click="showAgentModelSelector = showAgentModelSelector === agent.id ? null : agent.id"
+                class="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="切换模型"
+              >
+                <ChevronDown class="w-3 h-3" />
+              </Button>
+              <!-- Agent 模型选择下拉 -->
+              <div v-if="showAgentModelSelector === agent.id"
+                   class="oc-dropdown-menu absolute right-0 top-full z-20 mt-1 w-64 max-h-56 overflow-auto">
+                <div v-for="model in allAvailableModels" :key="model.path"
+                     @click="handleSetAgentModel(agent.id, model.path)"
+                     class="oc-dropdown-item cursor-pointer text-sm">
+                  <div class="flex items-center gap-1.5">
+                    <Check v-if="model.path === agent.primary" class="w-3 h-3 flex-shrink-0" style="color: var(--oc-accent);" />
+                    <span v-else class="w-3" />
+                    <div class="min-w-0 flex-1">
+                      <div class="font-medium truncate" style="color: var(--oc-text-primary);">{{ model.label }}</div>
+                      <div class="text-xs truncate" style="color: var(--oc-text-muted);">{{ model.path }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 模型使用统计 -->
+      <div v-if="Object.keys(agentModelStats).length > 0" class="flex-none mt-3 pt-3 border-t" style="border-color: var(--oc-divider-soft);">
+        <p class="text-xs font-medium mb-1.5" style="color: var(--oc-text-muted);">模型使用分布</p>
+        <div class="flex flex-wrap gap-1.5">
+          <span v-for="(count, model) in agentModelStats" :key="model"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px]"
+                style="background: var(--oc-card-elevated); color: var(--oc-text-secondary);">
+            {{ model }}
+            <span class="font-medium" style="color: var(--oc-accent);">{{ count }}</span>
+          </span>
+        </div>
+      </div>
+    </Card>
+
+    <!-- 服务商模型面板（原有内容） -->
+    <div v-if="currentConfig && activeTab === 'providers'" class="min-h-0 flex-1 grid gap-3 lg:grid-cols-3">
+          <!-- 左侧：快捷模型 + 模型配置 -->
+          <Card v-if="currentConfig" class="min-h-0 overflow-hidden p-4 lg:col-span-1 flex flex-col">
+
+            <!-- 快捷模型切换面板 -->
+            <div class="mb-3">
+              <h3 class="text-sm font-semibold mb-2 flex items-center gap-2" style="color: var(--oc-text-primary);">
+                <Zap class="w-4 h-4" style="color: var(--oc-accent);" />
+                快捷模型切换
+              </h3>
+              <div class="space-y-1">
+                <div v-for="qm in quickModels" :key="qm.path"
+                     class="group flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
+                     style="border-color: var(--oc-divider-soft); background: color-mix(in srgb, var(--oc-card-elevated) 82%, transparent);">
+                  <div class="min-w-0 flex-1">
+                    <span class="truncate block font-medium" style="color: var(--oc-text-primary);">{{ qm.label }}</span>
+                    <span class="truncate block" style="color: var(--oc-text-muted);">{{ qm.path }}</span>
+                  </div>
+                  <div class="flex gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="sm" @click="copyQuickModelCommand(qm.path)" class="h-6 w-6 p-0" title="复制切换命令">
+                      <Clipboard class="w-3 h-3" style="color: var(--oc-accent);" />
+                    </Button>
+                    <Button variant="ghost" size="sm" @click="removeQuickModel(qm.path)" class="h-6 w-6 p-0" title="移除">
+                      <Trash2 class="w-3 h-3" style="color: var(--oc-danger);" />
+                    </Button>
+                  </div>
+                </div>
+                <div v-if="quickModels.length === 0" class="text-xs py-2 text-center" style="color: var(--oc-text-muted);">
+                  尚未添加快捷模型
+                </div>
+              </div>
+              <div class="relative mt-1.5">
+                <Button variant="outline" size="sm" @click="showQuickModelSelector = !showQuickModelSelector"
+                        class="w-full h-7 text-xs justify-start gap-1"
+                        :disabled="allAvailableModels.length === 0">
+                  <Plus class="w-3 h-3" />
+                  添加快捷模型
+                </Button>
+                <div v-if="showQuickModelSelector" class="oc-dropdown-menu absolute z-20 mt-1 w-full max-h-48 overflow-auto">
+                  <div v-for="model in allAvailableModels" :key="model.path"
+                       @click="addQuickModel(model.path, model.label)"
+                       class="oc-dropdown-item cursor-pointer text-sm">
+                    <div class="flex items-center gap-1.5">
+                      <Check v-if="quickModels.some(q => q.path === model.path)" class="w-3 h-3 flex-shrink-0" style="color: var(--oc-accent);" />
+                      <span v-else class="w-3" />
+                      <div class="min-w-0 flex-1">
+                        <div class="font-medium truncate" style="color: var(--oc-text-primary);">{{ model.label }}</div>
+                        <div class="text-xs truncate" style="color: var(--oc-text-muted);">{{ model.path }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="border-top: 1px solid var(--oc-divider);"></div>
+
+            <!-- 全局默认模型配置（折叠） -->
+            <div class="mt-3">
+              <button @click="showGlobalModelConfig = !showGlobalModelConfig"
+                      class="w-full flex items-center justify-between text-sm font-semibold mb-2"
+                      style="color: var(--oc-text-primary);">
+                <span class="flex items-center gap-2">
+                  <ListTree class="w-4 h-4" style="color: var(--oc-text-muted);" />
+                  全局默认模型配置
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <Info class="w-3.5 h-3.5" style="color: var(--oc-text-muted); cursor: pointer;"
+                        @click.stop="showGlobalModelHelp = !showGlobalModelHelp" />
+                  <component :is="showGlobalModelConfig ? ChevronDown : ChevronRight" class="w-3.5 h-3.5" style="color: var(--oc-text-muted);" />
+                </span>
+              </button>
+
+              <!-- 帮助说明（内联展开，避免 overflow 裁剪） -->
+              <div v-if="showGlobalModelHelp" class="mb-2 px-3 py-2 rounded-lg text-[11px] leading-relaxed"
+                   style="background: color-mix(in srgb, var(--oc-accent) 6%, var(--oc-card-elevated)); border: 1px solid color-mix(in srgb, var(--oc-accent) 15%, var(--oc-divider-soft)); color: var(--oc-text-secondary);">
+                <p class="font-medium mb-1" style="color: var(--oc-text-primary);">模型配置优先级（高 → 低）</p>
+                <p>① <strong>会话级</strong> — /model 命令切换，仅影响当前对话</p>
+                <p>② <strong>Agent 级</strong> — 每个 Agent 独立设置，在「Agent 模型」Tab 管理</p>
+                <p>③ <strong>全局默认</strong> — 此处配置，作为 Agent 未覆盖时的兜底</p>
+                <p class="mt-1" style="color: var(--oc-warning);">
+                  当前所有 Agent 均已覆盖全局默认，此处设置不会立即生效。
+                </p>
+              </div>
+
+            <div v-if="showGlobalModelConfig" class="min-h-0 overflow-y-auto pr-1">
             <div class="mb-3">
               <p class="text-xs mb-2 font-medium" style="color: var(--oc-text-secondary);">主要模型</p>
               <div class="relative primary-selector-container">
@@ -1095,7 +1465,8 @@ const loadRemoteDefaultConfig = async () => {
                 </Button>
               </div>
             </div>
-            </div>
+            </div><!-- end showGlobalModelConfig -->
+            </div><!-- end mt-3 global model config wrapper -->
           </Card>
 
           <!-- 右侧：提供商列表 -->
@@ -1130,6 +1501,7 @@ const loadRemoteDefaultConfig = async () => {
                   @remove-model="removeModelFromProvider"
                   @edit="openEditProviderModal(provider.name)"
                   @delete="deleteProvider(provider.name)"
+                  @copy-command="(cmd) => showToast('success', `已复制: ${cmd}`)"
                 />
               </div>
             </div>
@@ -1397,6 +1769,36 @@ const loadRemoteDefaultConfig = async () => {
   .oc-provider-preset-btn {
     color: #ffffff !important;
   }
+}
+
+/* Tooltip 容器 */
+.oc-tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.oc-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--oc-text-primary);
+  background: var(--oc-card);
+  border: 1px solid var(--oc-divider);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 30;
+}
+
+.oc-tooltip-wrap:hover .oc-tooltip {
+  opacity: 1;
 }
 
 </style>
