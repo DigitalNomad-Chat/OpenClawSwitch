@@ -2623,6 +2623,22 @@ fn verify_openclaw_available_now() -> Result<String, String> {
     Ok(version_raw)
 }
 
+/// 验证已安装的 OpenClaw 版本是否匹配锁定版本
+fn verify_openclaw_version_match() -> Result<String, String> {
+    let version_raw = verify_openclaw_available_now()?;
+    let installed = extract_date_version(&version_raw)
+        .ok_or_else(|| format!("无法解析版本号: {}", version_raw))?;
+
+    if installed == OPENCLAW_PINNED_VERSION {
+        Ok(installed)
+    } else {
+        Err(format!(
+            "版本不匹配: 期望 {}, 实际安装 {}",
+            OPENCLAW_PINNED_VERSION, installed
+        ))
+    }
+}
+
 fn install_openclaw_with_source(app: &AppHandle, step: &str, source: &str, registry: Option<&str>) -> Result<String, String> {
     prepare_managed_runtime_process_env()?;
     let npm = npm_executable();
@@ -2824,6 +2840,21 @@ pub async fn run_full_install(app: AppHandle) -> Result<String, String> {
     emit_log(&app, "verify", "验证安装结果...", "info");
 
     let final_status = check_openclaw_installed();
+    if let Some(ref installed_version) = final_status.version {
+        if let Some(installed_date) = extract_date_version(installed_version) {
+            if installed_date != OPENCLAW_PINNED_VERSION {
+                emit_log(
+                    &app,
+                    "verify",
+                    &format!(
+                        "⚠️ 版本警告: 锁定版本 {}, 实际安装 {}",
+                        OPENCLAW_PINNED_VERSION, installed_date
+                    ),
+                    "warn",
+                );
+            }
+        }
+    }
     if final_status.installed {
         emit_log(&app, "verify", &format!("OpenClaw {} 安装成功", final_status.version.as_deref().unwrap_or("")), "success");
         emit_progress(&app, 5, total_steps, "验证安装", "success");
