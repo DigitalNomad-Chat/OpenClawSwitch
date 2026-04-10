@@ -7,7 +7,7 @@ import Button from '../ui/Button.vue'
 import Card from '../ui/Card.vue'
 import TerminalLog from '../ui/TerminalLog.vue'
 import { getOnboardingPrimaryAction } from '../../domain/onboardingActions'
-import { buildInstallSteps } from '../../domain/installSteps'
+import { buildInstallSteps, OPENCLAW_PINNED_VERSION } from '../../domain/installSteps'
 import type { InstallLogEvent, InstallProgressEvent, InstallDownloadEvent } from '../../types/config'
 
 const props = withDefaults(
@@ -165,6 +165,9 @@ const primaryActionText = computed(() => {
   <div class="oc-page-root h-full flex flex-col">
     <div class="w-full h-full flex flex-col flex-1 min-h-0">
       <Card class="p-5 mb-2 flex-shrink-0">
+        <p class="text-sm mt-1 mb-3" style="color: var(--oc-text-secondary);">
+          自动安装 OpenClaw v{{ OPENCLAW_PINNED_VERSION }}（已验证兼容版本）
+        </p>
         <div class="flex items-center gap-2">
           <template v-for="(step, i) in steps" :key="i">
             <div class="flex flex-col gap-0.5">

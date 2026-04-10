@@ -12,11 +12,13 @@ const createStep = (name: string): InstallStepItem => ({
   duration: 0,
 })
 
+export const OPENCLAW_PINNED_VERSION = '2026.3.8'
+
 export const buildInstallSteps = (_isWindows: boolean): InstallStepItem[] => [
   createStep('环境检测'),
   createStep('安装 Git'),
   createStep('安装 Node.js'),
-  createStep('安装 OpenClaw'),
+  createStep(`安装 OpenClaw v${OPENCLAW_PINNED_VERSION}`),
   createStep('验证安装'),
 ]
 
