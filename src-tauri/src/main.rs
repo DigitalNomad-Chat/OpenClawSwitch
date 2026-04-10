@@ -1192,6 +1192,7 @@ fn main() {
             // Claw Config
             claw_config::claw_read_config,
             claw_config::claw_write_config,
+            claw_config::claw_write_config_safe,
             claw_config::claw_validate_config,
             claw_config::claw_add_provider,
             claw_config::claw_remove_provider,

@@ -270,7 +270,7 @@ fn compare_versions(a: &str, b: &str) -> i32 {
 }
 
 /// 根据已安装的 OpenClaw 版本判断配置 Schema 版本
-fn detect_config_schema_version(version: &str) -> u32 {
+pub fn detect_config_schema_version(version: &str) -> u32 {
     match extract_date_version(version) {
         Some(v) if compare_versions(&v, OPENCLAW_CONFIG_SCHEMA_V4) >= 0 => 4,
         Some(v) if compare_versions(&v, OPENCLAW_CONFIG_SCHEMA_V3) >= 0 => 3,

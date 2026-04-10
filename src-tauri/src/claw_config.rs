@@ -2,6 +2,7 @@
 // OpenClaw 配置工具命令
 // ============================================================================
 
+use serde::Serialize;
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
@@ -93,6 +94,61 @@ pub fn claw_write_config(config: Value) -> Result<(), String> {
         .map_err(|e| format!("写入配置文件失败: {}", e))?;
 
     Ok(())
+}
+
+/// 配置写入结果
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigWriteResult {
+    /// 是否执行了配置适配
+    pub adapted: bool,
+    /// 检测到的 OpenClaw Schema 版本
+    pub schema_version: u32,
+    /// 写入的 Clawlite Schema 版本
+    pub config_schema: u32,
+}
+
+/// 安全写入配置 — 根据当前 OpenClaw 版本调整配置格式
+/// 先检测 OpenClaw 版本，再决定是否需要适配配置内容
+#[tauri::command]
+pub fn claw_write_config_safe(config: serde_json::Value) -> Result<ConfigWriteResult, String> {
+    // 1. 检测当前 OpenClaw 版本
+    let oc_status = crate::installer::check_openclaw_installed();
+    let schema_version = match &oc_status.version {
+        Some(v) => crate::installer::detect_config_schema_version(v),
+        None => 1, // 未安装时使用最保守的 schema
+    };
+
+    // 2. 检查是否需要适配（当前阶段仅做基础检测，不做实际迁移）
+    let _adapted = false;
+
+    // 3. 注入 Schema 标记
+    let mut config = config;
+    if config.get("meta").is_none() {
+        config["meta"] = serde_json::json!({});
+    }
+    config["meta"][CLAWLITE_SCHEMA_KEY] = serde_json::json!(SUPPORTED_CONFIG_SCHEMA);
+
+    // 4. 写入（复用现有备份逻辑）
+    let config_path = get_openclaw_config_path()?;
+    let _ = backup_config(&config_path);
+
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("创建目录失败: {}", e))?;
+    }
+
+    let json = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("序列化配置失败: {}", e))?;
+
+    std::fs::write(&config_path, json)
+        .map_err(|e| format!("写入配置文件失败: {}", e))?;
+
+    Ok(ConfigWriteResult {
+        adapted: _adapted,
+        schema_version,
+        config_schema: SUPPORTED_CONFIG_SCHEMA,
+    })
 }
 
 /// 验证 OpenClaw 配置
