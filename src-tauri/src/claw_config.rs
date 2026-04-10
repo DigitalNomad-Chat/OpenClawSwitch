@@ -7,6 +7,30 @@ use std::fs;
 use std::path::PathBuf;
 use obfstr::obfstr as s;
 
+/// Clawlite 当前支持的配置 Schema 版本
+const SUPPORTED_CONFIG_SCHEMA: u32 = 2;
+
+/// 配置文件中 Clawlite 专用的 meta 标记键名
+const CLAWLITE_SCHEMA_KEY: &str = "clawliteSchema";
+
+/// 检测配置文件的 Schema 版本并记录日志
+fn detect_and_log_config_schema(
+    config: &serde_json::Value,
+) -> u32 {
+    // 优先从 Clawlite 专有标记获取 Schema 版本
+    let schema = config
+        .get("meta")
+        .and_then(|m| m.get(CLAWLITE_SCHEMA_KEY))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as u32;
+
+    if schema > 0 && schema > SUPPORTED_CONFIG_SCHEMA {
+        // Schema 版本超出支持范围（当前仅记录，不阻塞）
+    }
+
+    if schema > 0 { schema } else { 1 }
+}
+
 /// 读取 OpenClaw 配置
 #[tauri::command]
 pub fn claw_read_config() -> Result<Value, String> {
@@ -33,6 +57,9 @@ pub fn claw_read_config() -> Result<Value, String> {
     let config: Value = serde_json::from_str(&content)
         .map_err(|e| format!("解析配置文件失败: {}", e))?;
 
+    // 检测配置 Schema 版本
+    let _schema_version = detect_and_log_config_schema(&config);
+
     Ok(config)
 }
 
@@ -43,6 +70,13 @@ pub fn claw_write_config(config: Value) -> Result<(), String> {
 
     // 创建备份
     backup_config(&config_path)?;
+
+    // 确保 meta 对象存在，注入 Clawlite Schema 版本标记
+    let mut config = config;
+    if config.get("meta").is_none() {
+        config["meta"] = serde_json::json!({});
+    }
+    config["meta"][CLAWLITE_SCHEMA_KEY] = serde_json::json!(SUPPORTED_CONFIG_SCHEMA);
 
     // 确保目录存在
     if let Some(parent) = config_path.parent() {
