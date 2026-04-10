@@ -813,6 +813,41 @@ echo "===END==="
     let oc_version_raw = get_section("OPENCLAW_VERSION");
     let oc_path_raw = get_section("OPENCLAW_PATH");
     let oc_installed = !oc_version_raw.contains(not_installed);
+    // 计算远程版本兼容性
+    let compatibility = if oc_installed {
+        let date_ver = crate::installer::extract_date_version(&oc_version_raw);
+        let config_schema = date_ver.as_ref()
+            .map(|v| crate::installer::detect_config_schema_version(v))
+            .unwrap_or(1);
+
+        let (status, message) = if let Some(ref dv) = date_ver {
+            let cmp = crate::installer::compare_versions(dv, crate::installer::OPENCLAW_PINNED_VERSION);
+            if dv == crate::installer::OPENCLAW_PINNED_VERSION {
+                ("compatible".to_string(), format!("已锁定 v{}", crate::installer::OPENCLAW_PINNED_VERSION))
+            } else if cmp > 0 {
+                ("warning".to_string(), format!(
+                    "远程版本 {} 高于锁定版本 {}",
+                    dv, crate::installer::OPENCLAW_PINNED_VERSION
+                ))
+            } else {
+                ("warning".to_string(), format!(
+                    "远程版本 {} 低于锁定版本 {}",
+                    dv, crate::installer::OPENCLAW_PINNED_VERSION
+                ))
+            }
+        } else {
+            ("warning".to_string(), "无法解析远程 OpenClaw 版本号".to_string())
+        };
+
+        Some(crate::installer::VersionCompatibility {
+            status,
+            message,
+            config_schema,
+        })
+    } else {
+        None
+    };
+
     let openclaw = crate::installer::OpenClawStatus {
         installed: oc_installed,
         version: if oc_installed {
@@ -825,7 +860,7 @@ echo "===END==="
         } else {
             Some(oc_path_raw)
         },
-        compatibility: None, // SSH 远程检测暂不计算兼容性
+        compatibility,
     };
 
     // Node.js

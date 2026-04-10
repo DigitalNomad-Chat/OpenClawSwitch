@@ -195,7 +195,7 @@ const MANAGED_NODE_VERSION: &str = "22.22.0";
 // ============================================================================
 
 /// Clawlite 已验证兼容的 OpenClaw 版本（安装时锁定此版本）
-const OPENCLAW_PINNED_VERSION: &str = "2026.3.8";
+pub const OPENCLAW_PINNED_VERSION: &str = "2026.3.8";
 
 /// OpenClaw 最低兼容版本（检测到低于此版本时警告用户）
 const OPENCLAW_MIN_VERSION: &str = "2026.3.1";
@@ -212,7 +212,7 @@ const OPENCLAW_CONFIG_SCHEMA_V4: &str = "2026.4.0";
 /// 从 `openclaw --version` 的原始输出中提取日期版本号
 /// 输入示例: "OpenClaw 2026.3.8 (3caab92)" → 输出: Some("2026.3.8")
 /// 输入示例: "nightly-build" → 输出: None
-fn extract_date_version(raw: &str) -> Option<String> {
+pub fn extract_date_version(raw: &str) -> Option<String> {
     let re = regex_lite_version_match(raw)?;
     Some(re)
 }
@@ -253,7 +253,7 @@ fn regex_lite_version_match(raw: &str) -> Option<String> {
 }
 
 /// 语义化版本比较：返回 -1 / 0 / 1
-fn compare_versions(a: &str, b: &str) -> i32 {
+pub fn compare_versions(a: &str, b: &str) -> i32 {
     let pa: Vec<u32> = a.split('.').filter_map(|s| s.parse().ok()).collect();
     let pb: Vec<u32> = b.split('.').filter_map(|s| s.parse().ok()).collect();
     let max_len = pa.len().max(pb.len());
