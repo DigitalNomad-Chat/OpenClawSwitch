@@ -196,6 +196,76 @@ const OPENCLAW_CONFIG_SCHEMA_V2: &str = "2026.3.1";
 const OPENCLAW_CONFIG_SCHEMA_V3: &str = "2026.3.22";
 const OPENCLAW_CONFIG_SCHEMA_V4: &str = "2026.4.0";
 
+/// 从 `openclaw --version` 的原始输出中提取日期版本号
+/// 输入示例: "OpenClaw 2026.3.8 (3caab92)" → 输出: Some("2026.3.8")
+/// 输入示例: "nightly-build" → 输出: None
+fn extract_date_version(raw: &str) -> Option<String> {
+    let re = regex_lite_version_match(raw)?;
+    Some(re)
+}
+
+/// 简易版本号提取（不依赖 regex crate）
+fn regex_lite_version_match(raw: &str) -> Option<String> {
+    let mut parts = Vec::new();
+    let mut digit_buf = String::new();
+    let mut dot_count = 0;
+    let mut found_start = false;
+    let mut chars = raw.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c.is_ascii_digit() {
+            digit_buf.push(c);
+            found_start = true;
+        } else if found_start && c == '.' && dot_count < 2 {
+            if !digit_buf.is_empty() {
+                let num: u32 = digit_buf.parse().ok()?;
+                parts.push(num);
+                digit_buf.clear();
+                dot_count += 1;
+            }
+        } else if found_start {
+            break;
+        }
+    }
+    if !digit_buf.is_empty() {
+        let num: u32 = digit_buf.parse().ok()?;
+        parts.push(num);
+    }
+
+    if parts.len() == 3 && parts[0] >= 2025 {
+        Some(format!("{}.{}.{}", parts[0], parts[1], parts[2]))
+    } else {
+        None
+    }
+}
+
+/// 语义化版本比较：返回 -1 / 0 / 1
+fn compare_versions(a: &str, b: &str) -> i32 {
+    let pa: Vec<u32> = a.split('.').filter_map(|s| s.parse().ok()).collect();
+    let pb: Vec<u32> = b.split('.').filter_map(|s| s.parse().ok()).collect();
+    let max_len = pa.len().max(pb.len());
+    for i in 0..max_len {
+        let va = pa.get(i).unwrap_or(&0);
+        let vb = pb.get(i).unwrap_or(&0);
+        match va.cmp(vb) {
+            std::cmp::Ordering::Less => return -1,
+            std::cmp::Ordering::Greater => return 1,
+            std::cmp::Ordering::Equal => continue,
+        }
+    }
+    0
+}
+
+/// 根据已安装的 OpenClaw 版本判断配置 Schema 版本
+fn detect_config_schema_version(version: &str) -> u32 {
+    match extract_date_version(version) {
+        Some(v) if compare_versions(&v, OPENCLAW_CONFIG_SCHEMA_V4) >= 0 => 4,
+        Some(v) if compare_versions(&v, OPENCLAW_CONFIG_SCHEMA_V3) >= 0 => 3,
+        Some(v) if compare_versions(&v, OPENCLAW_CONFIG_SCHEMA_V2) >= 0 => 2,
+        _ => 1,
+    }
+}
+
 const OPENCLAW_MANAGED_PATH_MARKER_START: &str = "# >>> openclaw managed runtime >>>";
 const OPENCLAW_MANAGED_PATH_MARKER_END: &str = "# <<< openclaw managed runtime <<<";
 #[cfg(target_os = "windows")]
@@ -525,7 +595,7 @@ fn detect_openclaw_bin_path() -> Option<PathBuf> {
     None
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "windows"))]
 mod installer_tests {
     use super::{
         append_windows_user_path_entry,
@@ -4110,5 +4180,81 @@ pub async fn run_doctor_fix(app: AppHandle) -> Result<String, String> {
             emit_log(&app, step, &format!("诊断修复失败: {}", e), "error");
             Err(format!("诊断修复失败: {}", e))
         }
+    }
+}
+
+#[cfg(test)]
+mod version_utils_tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_date_version_full_output() {
+        assert_eq!(
+            extract_date_version("OpenClaw 2026.3.8 (3caab92)"),
+            Some("2026.3.8".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_date_version_plain() {
+        assert_eq!(
+            extract_date_version("2026.03.10"),
+            Some("2026.3.10".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_date_version_nightly() {
+        assert_eq!(extract_date_version("nightly-build"), None);
+    }
+
+    #[test]
+    fn test_extract_date_version_empty() {
+        assert_eq!(extract_date_version(""), None);
+    }
+
+    #[test]
+    fn test_compare_versions_equal() {
+        assert_eq!(compare_versions("2026.3.8", "2026.3.8"), 0);
+    }
+
+    #[test]
+    fn test_compare_versions_greater() {
+        assert_eq!(compare_versions("2026.3.22", "2026.3.8"), 1);
+    }
+
+    #[test]
+    fn test_compare_versions_less() {
+        assert_eq!(compare_versions("2026.3.1", "2026.3.22"), -1);
+    }
+
+    #[test]
+    fn test_compare_versions_different_lengths() {
+        assert_eq!(compare_versions("2026.3.8", "2026.3.8.1"), -1);
+    }
+
+    #[test]
+    fn test_detect_config_schema_v2() {
+        assert_eq!(detect_config_schema_version("OpenClaw 2026.3.1"), 2);
+    }
+
+    #[test]
+    fn test_detect_config_schema_v3() {
+        assert_eq!(detect_config_schema_version("OpenClaw 2026.3.22"), 3);
+    }
+
+    #[test]
+    fn test_detect_config_schema_v4() {
+        assert_eq!(detect_config_schema_version("OpenClaw 2026.4.5"), 4);
+    }
+
+    #[test]
+    fn test_detect_config_schema_v1_legacy() {
+        assert_eq!(detect_config_schema_version("OpenClaw 2026.2.9"), 1);
+    }
+
+    #[test]
+    fn test_detect_config_schema_unknown() {
+        assert_eq!(detect_config_schema_version("nightly-build"), 1);
     }
 }
