@@ -19,10 +19,23 @@ use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct VersionCompatibility {
+    /// "compatible" | "warning" | "incompatible"
+    pub status: String,
+    /// 人类可读的描述
+    pub message: String,
+    /// 配置 Schema 版本号
+    pub config_schema: u32,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct OpenClawStatus {
     pub installed: bool,
     pub version: Option<String>,
     pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compatibility: Option<VersionCompatibility>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -1832,6 +1845,37 @@ fn format_speed(bytes_per_sec: f64) -> String {
 /// 检测 OpenClaw 安装状态
 #[tauri::command]
 pub fn check_openclaw_installed() -> OpenClawStatus {
+    let get_compatibility = |version: &str| -> Option<VersionCompatibility> {
+        let date_ver = extract_date_version(version)?;
+        let config_schema = detect_config_schema_version(version);
+        let cmp = compare_versions(&date_ver, OPENCLAW_PINNED_VERSION);
+
+        let (status, message) = if date_ver == OPENCLAW_PINNED_VERSION {
+            ("compatible".to_string(), format!("已锁定 v{}", OPENCLAW_PINNED_VERSION))
+        } else if cmp > 0 {
+            ("warning".to_string(), format!(
+                "安装版本 {} 高于锁定版本 {}，配置可能不兼容",
+                date_ver, OPENCLAW_PINNED_VERSION
+            ))
+        } else if compare_versions(&date_ver, OPENCLAW_MIN_VERSION) >= 0 {
+            ("warning".to_string(), format!(
+                "安装版本 {} 低于锁定版本 {}，建议升级",
+                date_ver, OPENCLAW_PINNED_VERSION
+            ))
+        } else {
+            ("incompatible".to_string(), format!(
+                "安装版本 {} 低于最低兼容版本 {}，必须升级",
+                date_ver, OPENCLAW_MIN_VERSION
+            ))
+        };
+
+        Some(VersionCompatibility {
+            status,
+            message,
+            config_schema,
+        })
+    };
+
     // 尝试直接执行
     if let Ok(version) = run_shell(&with_fnm_env("openclaw --version")) {
         let path = run_shell(&with_fnm_env(if cfg!(target_os = "windows") {
@@ -1842,8 +1886,9 @@ pub fn check_openclaw_installed() -> OpenClawStatus {
         .ok();
         return OpenClawStatus {
             installed: true,
-            version: Some(version),
+            version: Some(version.clone()),
             path,
+            compatibility: get_compatibility(&version),
         };
     }
 
@@ -1856,8 +1901,9 @@ pub fn check_openclaw_installed() -> OpenClawStatus {
         };
         return OpenClawStatus {
             installed: true,
-            version: Some(version),
+            version: Some(version.clone()),
             path,
+            compatibility: get_compatibility(&version),
         };
     }
 
@@ -1865,6 +1911,7 @@ pub fn check_openclaw_installed() -> OpenClawStatus {
         installed: false,
         version: None,
         path: None,
+        compatibility: None,
     }
 }
 

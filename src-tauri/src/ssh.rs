@@ -827,6 +827,7 @@ echo "===END==="
         } else {
             Some(oc_path_raw)
         },
+        compatibility: None, // SSH 远程检测暂不计算兼容性
     };
 
     // Node.js

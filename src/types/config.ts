@@ -263,11 +263,22 @@ export interface ConfigSearchResult {
 // 安装管理相关类型
 // ============================================================================
 
+/** 版本兼容性状态 */
+export interface VersionCompatibility {
+  /** "compatible" | "warning" | "incompatible" */
+  status: 'compatible' | 'warning' | 'incompatible'
+  /** 人类可读的描述 */
+  message: string
+  /** 配置 Schema 版本号 */
+  configSchema: number
+}
+
 /** OpenClaw 安装状态 */
 export interface OpenClawStatus {
   installed: boolean
   version: string | null
   path: string | null
+  compatibility?: VersionCompatibility | null
 }
 
 /** Node.js 安装状态 */
