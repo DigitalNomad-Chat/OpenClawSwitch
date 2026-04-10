@@ -9,6 +9,7 @@ import {
   shouldShowInstallGatewayServiceAction,
 } from '../../domain/gatewayServiceAction'
 import { resolveAsyncButtonLabel, resolveAsyncButtonState } from '../../domain/asyncButtonState'
+import { formatOpenClawVersionLabel, resolveCompatibilityBadge } from '../../domain/openclawVersionLabel'
 import type { EnvironmentStatus } from '../../types/config'
 
 interface DashboardLogEvent {
@@ -64,6 +65,10 @@ const serviceSummary = computed(() => {
   const gateway = props.gatewayReachable ? '运行中' : '未运行'
   const environment = props.envMode === 'ssh' ? 'SSH' : '本地'
   return `OpenClaw ${version} · Node.js ${node} · 网关 ${gateway} · 环境 ${environment}`
+})
+
+const compatibilityBadge = computed(() => {
+  return resolveCompatibilityBadge(props.envStatus.openclaw.compatibility)
 })
 
 const quickActions = computed(() => {
@@ -266,6 +271,20 @@ onUnmounted(() => {
         </span>
       </div>
       <p class="mt-2 text-sm" style="color: var(--oc-text-secondary);">{{ serviceSummary }}</p>
+      <span
+        v-if="compatibilityBadge"
+        class="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium"
+        :style="{ color: compatibilityBadge.color, backgroundColor: compatibilityBadge.bgColor }"
+      >
+        {{ compatibilityBadge.label }}
+      </span>
+      <span
+        v-if="envStatus.openclaw.compatibility?.message"
+        class="block mt-1 text-xs"
+        style="color: var(--oc-text-secondary);"
+      >
+        {{ envStatus.openclaw.compatibility.message }}
+      </span>
     </section>
 
     <section class="oc-panel shrink-0 p-4">
