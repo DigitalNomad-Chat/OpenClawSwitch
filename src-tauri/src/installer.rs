@@ -2618,7 +2618,9 @@ fn extract_managed_node_archive(data: &[u8], version: &str) -> Result<PathBuf, S
 }
 
 fn verify_openclaw_available_now() -> Result<String, String> {
-    run_shell(&with_fnm_env("openclaw --version")).or_else(|_| run_cmd("openclaw", &["--version"]))
+    let version_raw = run_shell(&with_fnm_env("openclaw --version"))
+        .or_else(|_| run_cmd("openclaw", &["--version"]))?;
+    Ok(version_raw)
 }
 
 fn install_openclaw_with_source(app: &AppHandle, step: &str, source: &str, registry: Option<&str>) -> Result<String, String> {
@@ -2631,7 +2633,11 @@ fn install_openclaw_with_source(app: &AppHandle, step: &str, source: &str, regis
     run_shell_with_log(app, step, &cmd)?;
     expose_managed_runtime_to_user_path_silently()?;
     repair_managed_node_path_silently();
-    verify_openclaw_available_now()
+    let version = verify_openclaw_available_now()?;
+    let installed = extract_date_version(&version)
+        .unwrap_or_else(|| version.clone());
+    emit_log(app, step, &format!("已安装 OpenClaw {}", installed), "info");
+    Ok(version)
 }
 
 #[tauri::command]
@@ -2659,23 +2665,24 @@ pub async fn install_node_via_fnm(app: AppHandle, version: String, use_china_mir
 #[tauri::command]
 pub async fn install_openclaw(app: AppHandle, use_china_mirror: bool) -> Result<String, String> {
     let step = "install_openclaw";
-    emit_log(&app, step, "开始安装 OpenClaw...", "info");
+    emit_log(&app, step, &format!("开始安装 OpenClaw {} ...", OPENCLAW_PINNED_VERSION), "info");
     expose_managed_runtime_to_user_path_silently()?;
 
     let registries = if use_china_mirror { NPM_REGISTRIES.to_vec() } else { vec![NPM_REGISTRIES[2]] };
 
     for registry in &registries {
         emit_log(&app, step, &format!("使用 registry: {}", registry), "info");
-        match install_openclaw_with_source(&app, step, "openclaw@latest", Some(registry)) {
+        let source = format!("openclaw@{}", OPENCLAW_PINNED_VERSION);
+        match install_openclaw_with_source(&app, step, &source, Some(registry)) {
             Ok(version) => {
-                emit_log(&app, step, &format!("OpenClaw 安装成功: {}", version), "success");
+                emit_log(&app, step, &format!("OpenClaw {} 安装成功", OPENCLAW_PINNED_VERSION), "success");
                 return Ok("OpenClaw 安装成功".to_string());
             }
             Err(error) => emit_log(&app, step, &format!("使用 {} 安装失败: {}", registry, error), "warn"),
         }
     }
 
-    Err("OpenClaw 安装失败，所有安装源均不可用".to_string())
+    Err(format!("OpenClaw {} 安装失败，所有安装源均不可用", OPENCLAW_PINNED_VERSION))
 }
 
 
