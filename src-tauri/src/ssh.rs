@@ -604,7 +604,6 @@ pub fn ssh_search_config(
     s! { let opt_openclaw = "/opt/openclaw"; }
     s! { let root_home = "/root"; }
     s! { let openclaw_json = "openclaw.json"; }
-    s! { let clawdbot_json = "clawdbot.json"; }
     s! { let openclaw_yaml = "openclaw.yaml"; }
     s! { let openclaw_yml = "openclaw.yml"; }
 
@@ -621,7 +620,6 @@ pub fn ssh_search_config(
 
     let config_names = [
         openclaw_json,
-        clawdbot_json,
         openclaw_yaml,
         openclaw_yml,
     ];

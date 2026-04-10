@@ -99,21 +99,15 @@ fn get_default_config_dir() -> Result<PathBuf, String> {
 
 /// 在指定目录中检测配置文件
 fn detect_config_file(dir_path: &PathBuf) -> Result<PathBuf, String> {
-    // 优先级：openclaw.json > clawdbot.json
     let openclaw_path = dir_path.join(s!("openclaw.json"));
     if openclaw_path.exists() {
         return Ok(openclaw_path);
     }
 
-    let clawdbot_path = dir_path.join(s!("clawdbot.json"));
-    if clawdbot_path.exists() {
-        return Ok(clawdbot_path);
-    }
-
     Err(format!(
         "{}{}",
         dir_path.display(),
-        s!(" 中未找到配置文件")
+        s!(" 中未找到 openclaw.json 配置文件")
     ))
 }
 

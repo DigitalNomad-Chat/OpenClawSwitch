@@ -1529,13 +1529,8 @@ fn get_local_openclaw_config_path() -> Result<PathBuf, String> {
         return Ok(openclaw_path);
     }
 
-    let clawdbot_path = config_dir.join("clawdbot.json");
-    if clawdbot_path.exists() {
-        return Ok(clawdbot_path);
-    }
-
     Err(format!(
-        "未找到配置文件: {}",
+        "未找到 openclaw.json 配置文件: {}",
         config_dir.display()
     ))
 }
