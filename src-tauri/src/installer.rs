@@ -176,6 +176,26 @@ const FNM_MIRRORS: &[&str] = &[
 ];
 
 const MANAGED_NODE_VERSION: &str = "22.22.0";
+
+// ============================================================================
+// OpenClaw 版本管理
+// ============================================================================
+
+/// Clawlite 已验证兼容的 OpenClaw 版本（安装时锁定此版本）
+const OPENCLAW_PINNED_VERSION: &str = "2026.3.8";
+
+/// OpenClaw 最低兼容版本（检测到低于此版本时警告用户）
+const OPENCLAW_MIN_VERSION: &str = "2026.3.1";
+
+/// OpenClaw 配置 Schema 版本号边界（用于配置适配层判断）
+/// - v1: 2026.3.1 之前的配置格式
+/// - v2: 2026.3.1 ~ 2026.3.21 的配置格式（14 模块完整版）
+/// - v3: 2026.3.22+ 配置格式（插件系统重构、遗留清理后）
+/// - v4: 2026.4.0+ 配置格式（配置规范化）
+const OPENCLAW_CONFIG_SCHEMA_V2: &str = "2026.3.1";
+const OPENCLAW_CONFIG_SCHEMA_V3: &str = "2026.3.22";
+const OPENCLAW_CONFIG_SCHEMA_V4: &str = "2026.4.0";
+
 const OPENCLAW_MANAGED_PATH_MARKER_START: &str = "# >>> openclaw managed runtime >>>";
 const OPENCLAW_MANAGED_PATH_MARKER_END: &str = "# <<< openclaw managed runtime <<<";
 #[cfg(target_os = "windows")]
