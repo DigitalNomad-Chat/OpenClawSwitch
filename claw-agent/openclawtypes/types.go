@@ -2,9 +2,17 @@ package openclawtypes
 
 // OpenClawConfig is the canonical structure for ~/.openclaw/openclaw.json.
 type OpenClawConfig struct {
-	Models   *OpenClawModels `json:"models,omitempty"`
-	Agents   *OpenClawAgents `json:"agents,omitempty"`
-	Bindings []interface{}   `json:"bindings,omitempty"`
+	Meta     *OpenClawMeta     `json:"meta,omitempty"`
+	Models   *OpenClawModels   `json:"models,omitempty"`
+	Agents   *OpenClawAgents   `json:"agents,omitempty"`
+	Bindings []interface{}     `json:"bindings,omitempty"`
+}
+
+// OpenClawMeta 配置元数据
+type OpenClawMeta struct {
+	LastTouchedVersion string `json:"lastTouchedVersion,omitempty"`
+	LastTouchedAt      string `json:"lastTouchedAt,omitempty"`
+	ClawliteSchema     uint32 `json:"clawliteSchema,omitempty"`
 }
 
 type OpenClawModels struct {
