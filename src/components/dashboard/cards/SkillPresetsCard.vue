@@ -59,6 +59,7 @@ const emit = defineEmits<{
     :icon="icon"
     :active="active"
     :status="cardStatus"
+    :status-label="statusText"
     :glow="activePresetsCount > 0"
   >
     <!-- 预设信息 -->

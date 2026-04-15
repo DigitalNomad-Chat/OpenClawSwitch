@@ -72,6 +72,7 @@ const emit = defineEmits<{
     :icon="icon"
     :active="active"
     :status="cardStatus"
+    :status-label="statusText"
   >
     <!-- 任务信息 -->
     <div class="cron-info">

@@ -7,12 +7,14 @@ interface Props {
   active?: boolean
   status?: 'active' | 'inactive' | 'loading' | 'error'
   glow?: boolean
+  statusLabel?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   active: false,
   status: 'inactive',
-  glow: false
+  glow: false,
+  statusLabel: undefined
 })
 
 // 图标组件映射（从 lucide-vue-next 导入）
@@ -55,7 +57,7 @@ const statusTextMap = {
   error: '错误'
 }
 
-const statusText = computed(() => statusTextMap[props.status])
+const statusText = computed(() => props.statusLabel ?? statusTextMap[props.status])
 </script>
 
 <template>

@@ -59,6 +59,7 @@ const emit = defineEmits<{
     :icon="icon"
     :active="active"
     :status="cardStatus"
+    :status-label="statusText"
     :glow="activeWorkspacesCount > 0"
   >
     <!-- 工作空间信息 -->
