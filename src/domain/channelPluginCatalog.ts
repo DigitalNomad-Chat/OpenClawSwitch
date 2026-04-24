@@ -40,7 +40,7 @@ export const CHANNEL_PLUGIN_CATALOG: ChannelPluginMeta[] = [
     id: 'feishu',
     configKey: 'feishu',
     displayName: '飞书',
-    npmPackage: '@larksuiteoapi/feishu-openclaw-plugin',
+    npmPackage: '@larksuite/openclaw-lark',
     pluginStatusKey: 'feishuInstalled',
     supportsQuickSetup: true,
     supportsMessagePage: true,

@@ -1,7 +1,7 @@
 export type JsonRecord = Record<string, unknown>
 
 export const FEISHU_CHANNEL_KEY = 'feishu'
-export const FEISHU_PLUGIN_ALLOW_ENTRY = 'feishu-openclaw-plugin'
+export const FEISHU_PLUGIN_ALLOW_ENTRY = 'feishu'
 
 export interface FeishuChannelConfigInput {
   enabled: boolean
@@ -24,7 +24,6 @@ const ensureRecord = (root: JsonRecord, key: string): JsonRecord => {
 
 export const ensureFeishuPluginAllowed = (root: JsonRecord) => {
   const plugins = ensureRecord(root, 'plugins')
-  plugins.enabled = true
 
   const allow = Array.isArray(plugins.allow)
     ? plugins.allow.filter((item): item is string => typeof item === 'string')
@@ -35,6 +34,11 @@ export const ensureFeishuPluginAllowed = (root: JsonRecord) => {
   }
 
   plugins.allow = allow
+
+  // 确保 entries 对象存在（OpenClaw 2026.4.x+ 插件系统）
+  if (!plugins.entries || typeof plugins.entries !== 'object') {
+    plugins.entries = {}
+  }
 }
 
 export const mergeFeishuChannelConfig = (

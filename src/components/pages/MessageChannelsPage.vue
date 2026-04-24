@@ -9,6 +9,8 @@ import {
   Slack,
   MessageCircle,
   Bell,
+  Smartphone,
+  Mail,
   ChevronDown,
   ChevronRight,
   Eye,
@@ -246,9 +248,11 @@ const channelList: ChannelMeta[] = sortMessageChannelsForDisplay([
   { id: 'wecom', name: '企业微信', icon: MessageCircle, iconColor: 'var(--oc-success)' },
   { id: 'qq', name: 'QQ', icon: Bell, iconColor: 'var(--oc-warning)' },
   { id: 'dingtalk', name: '钉钉', icon: Bell, iconColor: 'var(--oc-accent)' },
+  { id: 'slack', name: 'Slack', icon: Slack, iconColor: 'var(--oc-warning)' },
+  { id: 'whatsapp', name: 'WhatsApp', icon: Smartphone, iconColor: 'var(--oc-success)' },
+  { id: 'imessage', name: 'iMessage', icon: Mail, iconColor: 'var(--oc-accent)' },
   { id: 'telegram', name: 'Telegram', icon: Send, iconColor: 'var(--oc-accent)' },
   { id: 'discord', name: 'Discord', icon: Hash, iconColor: 'var(--oc-warning)' },
-  { id: 'slack', name: 'Slack', icon: Slack, iconColor: 'var(--oc-warning)' },
 ])
 
 const hints: Record<ChannelId, string> = {
@@ -3915,7 +3919,7 @@ onUnmounted(() => {
                   启用流式输出（channels.feishu.streaming）
                 </label>
                 <p class="text-xs" style="color: var(--oc-text-muted);">
-                  消息逐步显示，类似真人打字体验。需要配合官方插件 @larksuiteoapi/feishu-openclaw-plugin 使用。
+                  消息逐步显示，类似真人打字体验。需要配合官方插件 @larksuite/openclaw-lark 使用。
                 </p>
               </div>
 

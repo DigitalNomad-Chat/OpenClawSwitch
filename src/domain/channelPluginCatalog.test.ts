@@ -13,7 +13,7 @@ import {
 
 describe('CHANNEL_PLUGIN_CATALOG', () => {
   it('pins the requested npm package names for plugin-backed channels', () => {
-    expect(getChannelPluginMeta('feishu')?.npmPackage).toBe('@larksuiteoapi/feishu-openclaw-plugin')
+    expect(getChannelPluginMeta('feishu')?.npmPackage).toBe('@larksuite/openclaw-lark')
     expect(getChannelPluginMeta('wecom')?.npmPackage).toBe('@wecom/wecom-openclaw-plugin')
     expect(getChannelPluginMeta('qq')?.npmPackage).toBe('@sliverp/qqbot')
     expect(getChannelPluginMeta('dingtalk')?.npmPackage).toBe('@dingtalk-real-ai/dingtalk-connector')

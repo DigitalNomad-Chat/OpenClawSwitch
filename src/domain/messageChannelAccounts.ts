@@ -111,6 +111,9 @@ const PUBLIC_SCOPED_KEYS: Record<ManagedMessageChannelId, string[]> = {
     'dynamicAgentCreation',
     'proxy',
     'streaming',
+    'blockStreaming',
+    'typingIndicator',
+    'requireMention',
     'network',
   ],
   wecom: [

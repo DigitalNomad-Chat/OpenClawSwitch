@@ -81,8 +81,6 @@ export const ensureDingtalkPluginAllowed = (root: JsonRecord) => {
   const plugins = asRecord(root.plugins) || {}
   root.plugins = plugins
 
-  plugins.enabled = true
-
   const allow = Array.isArray(plugins.allow)
     ? plugins.allow.filter((item): item is string => typeof item === 'string')
     : []
@@ -92,6 +90,11 @@ export const ensureDingtalkPluginAllowed = (root: JsonRecord) => {
   }
 
   plugins.allow = allow
+
+  // 确保 entries 对象存在（OpenClaw 2026.4.x+ 插件系统）
+  if (!plugins.entries || typeof plugins.entries !== 'object') {
+    plugins.entries = {}
+  }
 }
 
 export const shouldIncludeDingtalkDefaultAccount = ({
