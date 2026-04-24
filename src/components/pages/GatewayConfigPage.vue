@@ -37,6 +37,7 @@ const gatewayBind = ref('loopback')
 const authMode = ref('token')
 const authToken = ref('')
 const tailscaleMode = ref('off')
+const hotReloadMode = ref('hybrid')
 const denyCommands = ref<string[]>([])
 const denyCommandsInput = ref('')
 const isDirty = ref(false)
@@ -81,6 +82,13 @@ const tailscaleOptions = [
   { value: 'serve', label: 'serve', subtext: '作为 Tailscale 服务' },
 ]
 
+const hotReloadModeOptions = [
+  { value: 'hybrid', label: 'hybrid', subtext: '安全改动即时生效，关键改动自动重启（推荐）' },
+  { value: 'hot', label: 'hot', subtext: '仅安全改动即时生效，关键改动提示手动重启' },
+  { value: 'restart', label: 'restart', subtext: '任何改动都自动重启 Gateway' },
+  { value: 'off', label: 'off', subtext: '关闭监听，手动重启才生效' },
+]
+
 const authProfileModeOptions = [
   { value: 'token', label: 'token', subtext: 'Token 认证' },
   { value: 'oauth', label: 'oauth', subtext: 'OAuth 认证' },
@@ -101,6 +109,7 @@ function syncFormFromConfig() {
   authMode.value = g.auth?.mode ?? 'token'
   authToken.value = g.auth?.token ?? ''
   tailscaleMode.value = g.tailscale?.mode ?? 'off'
+  hotReloadMode.value = g.hotReloadMode ?? 'hybrid'
   denyCommands.value = [...(g.nodes?.denyCommands ?? [])]
 
   // Auth Profiles 同步
@@ -134,6 +143,10 @@ function buildGatewayConfig(): GatewayConfig {
 
   if (denyCommands.value.length > 0) {
     config.nodes = { denyCommands: [...denyCommands.value] }
+  }
+
+  if (hotReloadMode.value !== 'hybrid') {
+    config.hotReloadMode = hotReloadMode.value as 'hybrid' | 'hot' | 'restart' | 'off'
   }
 
   return config
@@ -347,6 +360,19 @@ watch(
             <StyledSelect
               v-model="tailscaleMode"
               :options="tailscaleOptions"
+              @change="isDirty = true"
+            />
+          </div>
+
+          <!-- 热重载模式 -->
+          <div class="config-card rounded-lg p-3" style="background: var(--oc-card-elevated);">
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-xs font-medium" style="color: var(--oc-text-secondary);">热重载模式</span>
+              <HelpTooltip title="热重载模式" content="配置文件变更时的应用策略。hybrid（推荐）安全改动即时生效，关键改动自动重启。需要手动重启的配置项：端口、绑定、认证、TLS、插件。" />
+            </div>
+            <StyledSelect
+              v-model="hotReloadMode"
+              :options="hotReloadModeOptions"
               @change="isDirty = true"
             />
           </div>

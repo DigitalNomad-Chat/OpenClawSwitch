@@ -103,8 +103,9 @@ const hookEntries = ref<HookEntry[]>([
   { id: 'session-memory', label: 'Session Memory', description: '跨会话记忆持久化存储', enabled: true },
 ])
 
-// Skills 配置
-const nodeManager = ref('pnpm')
+// Skills 配置（新版：load.extraDirs）
+const skillsExtraDirs = ref<string[]>([])
+const skillsExtraDirsInput = ref('')
 
 // Messages 配置
 const ackReactionScope = ref('')
@@ -113,6 +114,15 @@ const ackReactionScope = ref('')
 const commandsNative = ref('auto')
 const commandsRestart = ref(true)
 const commandsOwnerDisplay = ref('raw')
+
+// Agent Defaults 配置（OpenClaw 2026.4.x+）
+const thinkingDefault = ref('medium')
+const timeoutSeconds = ref(600)
+const heartbeatEvery = ref('30m')
+const contextPruningMode = ref('cache-ttl')
+const contextPruningTtl = ref('1h')
+const maxConcurrent = ref(4)
+const subagentsMaxConcurrent = ref(8)
 
 // Wizard 信息（只读展示）
 const wizardInfo = ref<{ lastRunAt?: string; lastRunVersion?: string; lastRunCommand?: string; lastRunMode?: string }>({})
@@ -160,12 +170,23 @@ const sessionsVisibilityOptions = [
   { value: 'private', label: 'private', subtext: '完全私有' },
 ]
 
-// Node Manager 选项
-const nodeManagerOptions = [
-  { value: 'pnpm', label: 'pnpm', subtext: '推荐 · 速度快、磁盘占用小' },
-  { value: 'npm', label: 'npm', subtext: 'Node.js 默认包管理器' },
-  { value: 'yarn', label: 'yarn', subtext: 'Facebook 出品包管理器' },
-  { value: 'bun', label: 'bun', subtext: '高性能 JS 运行时 & 包管理器' },
+// Thinking Default 选项（OpenClaw 2026.4.x+）
+const thinkingDefaultOptions = [
+  { value: 'off', label: 'off', subtext: '关闭思考模式' },
+  { value: 'minimal', label: 'minimal', subtext: '最小思考' },
+  { value: 'low', label: 'low', subtext: '低强度' },
+  { value: 'medium', label: 'medium', subtext: '中等强度（默认）' },
+  { value: 'high', label: 'high', subtext: '高强度' },
+  { value: 'xhigh', label: 'xhigh', subtext: '极高强度' },
+  { value: 'adaptive', label: 'adaptive', subtext: '自适应强度' },
+]
+
+// Context Pruning 模式选项
+const contextPruningModeOptions = [
+  { value: '', label: '未设置（默认）', subtext: '使用框架默认策略' },
+  { value: 'cache-ttl', label: 'cache-ttl', subtext: '基于缓存 TTL 的修剪' },
+  { value: 'fixed-size', label: 'fixed-size', subtext: '固定大小修剪' },
+  { value: 'adaptive', label: 'adaptive', subtext: '自适应修剪' },
 ]
 
 // OpenClaw 内置工具名（来源于官方文档 https://docs.openclaw.ai/tools）
@@ -283,8 +304,8 @@ function syncFormFromConfig() {
     hook.enabled = entries[hook.id]?.enabled ?? true
   }
 
-  // Skills 同步
-  nodeManager.value = config.skills?.install?.nodeManager ?? 'pnpm'
+  // Skills 同步（新版：load.extraDirs）
+  skillsExtraDirs.value = [...(config.skills?.load?.extraDirs ?? [])]
 
   // Messages 同步
   ackReactionScope.value = config.messages?.ackReactionScope ?? ''
@@ -293,6 +314,16 @@ function syncFormFromConfig() {
   commandsNative.value = config.commands?.native ?? 'auto'
   commandsRestart.value = config.commands?.restart ?? true
   commandsOwnerDisplay.value = config.commands?.ownerDisplay ?? 'raw'
+
+  // Agent Defaults 同步（OpenClaw 2026.4.x+）
+  const defaults = config.agents?.defaults ?? {}
+  thinkingDefault.value = defaults.thinkingDefault ?? 'medium'
+  timeoutSeconds.value = defaults.timeoutSeconds ?? 600
+  heartbeatEvery.value = defaults.heartbeat?.every ?? '30m'
+  contextPruningMode.value = defaults.contextPruning?.mode ?? 'cache-ttl'
+  contextPruningTtl.value = defaults.contextPruning?.ttl ?? '1h'
+  maxConcurrent.value = defaults.maxConcurrent ?? 4
+  subagentsMaxConcurrent.value = defaults.subagents?.maxConcurrent ?? 8
 
   // Wizard 同步（只读展示）
   wizardInfo.value = {
@@ -369,6 +400,39 @@ function buildHooksConfig(): HooksConfig {
   }
 }
 
+/** 从表单构建 AgentDefaults（OpenClaw 2026.4.x+） */
+function buildAgentDefaults(): any {
+  const defaults: any = {}
+
+  if (thinkingDefault.value !== 'medium') {
+    defaults.thinkingDefault = thinkingDefault.value
+  }
+
+  if (timeoutSeconds.value !== 600) {
+    defaults.timeoutSeconds = timeoutSeconds.value
+  }
+
+  if (heartbeatEvery.value !== '30m') {
+    defaults.heartbeat = { every: heartbeatEvery.value }
+  }
+
+  if (contextPruningMode.value || contextPruningTtl.value) {
+    defaults.contextPruning = {}
+    if (contextPruningMode.value) defaults.contextPruning.mode = contextPruningMode.value
+    if (contextPruningTtl.value) defaults.contextPruning.ttl = contextPruningTtl.value
+  }
+
+  if (maxConcurrent.value !== 4) {
+    defaults.maxConcurrent = maxConcurrent.value
+  }
+
+  if (subagentsMaxConcurrent.value !== 8) {
+    defaults.subagents = { maxConcurrent: subagentsMaxConcurrent.value }
+  }
+
+  return defaults
+}
+
 // ============================================================================
 // 操作处理
 // ============================================================================
@@ -387,9 +451,13 @@ async function handleSave() {
       ...configSource.value.config,
       tools: buildToolsConfig(),
       session: buildSessionConfig(),
-      agents: { ...configSource.value.config.agents, list: agentList.value },
+      agents: {
+        ...configSource.value.config.agents,
+        list: agentList.value,
+        defaults: buildAgentDefaults(),
+      },
       hooks: buildHooksConfig(),
-      skills: { install: { nodeManager: nodeManager.value } },
+      skills: { load: { extraDirs: [...skillsExtraDirs.value] } },
       messages: {
         ...(ackReactionScope.value ? { ackReactionScope: ackReactionScope.value } : {}),
       },
@@ -418,6 +486,7 @@ const toolsDenyTag = createTagHandlers(toolsDeny, toolsDenyInput)
 const a2aAllowTag = createTagHandlers(a2aAllow, a2aAllowInput)
 const sandboxAllowTag = createTagHandlers(sandboxAllow, sandboxAllowInput)
 const sandboxDenyTag = createTagHandlers(sandboxDeny, sandboxDenyInput)
+const skillsExtraDirsTag = createTagHandlers(skillsExtraDirs, skillsExtraDirsInput)
 
 // ============================================================================
 // Agent Skills 管理
@@ -1093,6 +1162,120 @@ watch(
       </section>
 
       <!-- ============================================================ -->
+      <!-- Agent 默认配置（OpenClaw 2026.4.x+） -->
+      <!-- ============================================================ -->
+      <section class="oc-panel p-4">
+        <h4 class="flex items-center gap-2 mb-4" style="font-size: var(--text-base); font-weight: var(--font-weight-semibold); color: var(--oc-text-primary);">
+          <Users class="w-4 h-4" style="color: var(--oc-accent);" />
+          Agent 默认配置
+        </h4>
+
+        <div class="grid grid-cols-2 gap-4">
+          <!-- Thinking Default -->
+          <div class="config-card rounded-lg p-3" style="background: var(--oc-card-elevated);">
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-xs font-medium" style="color: var(--oc-text-secondary);">思考模式</span>
+              <HelpTooltip title="Thinking Default" content="控制 Agent 默认的思考强度。medium 为均衡模式，adaptive 会根据任务复杂度自动调整。" />
+            </div>
+            <StyledSelect
+              v-model="thinkingDefault"
+              :options="thinkingDefaultOptions"
+              @change="isDirty = true"
+            />
+          </div>
+
+          <!-- Timeout Seconds -->
+          <div class="config-card rounded-lg p-3" style="background: var(--oc-card-elevated);">
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-xs font-medium" style="color: var(--oc-text-secondary);">请求超时（秒）</span>
+              <HelpTooltip title="Timeout Seconds" content="单次 LLM 请求的最大等待时间。超过后请求将被取消。默认 600 秒（10 分钟）。" />
+            </div>
+            <Input
+              v-model.number="timeoutSeconds"
+              type="number"
+              placeholder="600"
+              class="h-8 text-xs"
+              :min="1"
+              @input="isDirty = true"
+            />
+          </div>
+
+          <!-- Heartbeat Every -->
+          <div class="config-card rounded-lg p-3" style="background: var(--oc-card-elevated);">
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-xs font-medium" style="color: var(--oc-text-secondary);">心跳间隔</span>
+              <HelpTooltip title="Heartbeat" content="Agent 向网关发送心跳的间隔。格式如 30m（30 分钟）、1h（1 小时）。留空表示使用默认值。" />
+            </div>
+            <Input
+              v-model="heartbeatEvery"
+              placeholder="30m"
+              class="h-8 text-xs"
+              @input="isDirty = true"
+            />
+          </div>
+
+          <!-- Context Pruning Mode -->
+          <div class="config-card rounded-lg p-3" style="background: var(--oc-card-elevated);">
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-xs font-medium" style="color: var(--oc-text-secondary);">上下文修剪模式</span>
+              <HelpTooltip title="Context Pruning" content="当对话上下文过长时的修剪策略。cache-ttl = 基于缓存 TTL 修剪，fixed-size = 固定大小修剪，adaptive = 自适应修剪。" />
+            </div>
+            <StyledSelect
+              v-model="contextPruningMode"
+              :options="contextPruningModeOptions"
+              @change="isDirty = true"
+            />
+          </div>
+
+          <!-- Context Pruning TTL -->
+          <div class="config-card rounded-lg p-3" style="background: var(--oc-card-elevated);">
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-xs font-medium" style="color: var(--oc-text-secondary);">修剪 TTL</span>
+              <HelpTooltip title="Context Pruning TTL" content="上下文修剪的有效期。格式如 1h（1 小时）、30m（30 分钟）。仅在 cache-ttl 模式下有效。" />
+            </div>
+            <Input
+              v-model="contextPruningTtl"
+              placeholder="1h"
+              class="h-8 text-xs"
+              @input="isDirty = true"
+            />
+          </div>
+
+          <!-- Max Concurrent -->
+          <div class="config-card rounded-lg p-3" style="background: var(--oc-card-elevated);">
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-xs font-medium" style="color: var(--oc-text-secondary);">最大并发数</span>
+              <HelpTooltip title="Max Concurrent" content="Agent 同时执行的最大任务数。默认 4。增大可提高吞吐量，但可能增加资源占用。" />
+            </div>
+            <Input
+              v-model.number="maxConcurrent"
+              type="number"
+              placeholder="4"
+              class="h-8 text-xs"
+              :min="1"
+              @input="isDirty = true"
+            />
+          </div>
+
+          <!-- Subagents Max Concurrent -->
+          <div class="config-card rounded-lg p-3" style="background: var(--oc-card-elevated);">
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-xs font-medium" style="color: var(--oc-text-secondary);">子 Agent 最大并发数</span>
+              <HelpTooltip title="Subagents Max Concurrent" content="子 Agent（Subagent）同时执行的最大任务数。默认 8。独立控制以避免子任务耗尽资源。" />
+            </div>
+            <Input
+              v-model.number="subagentsMaxConcurrent"
+              type="number"
+              placeholder="8"
+              class="h-8 text-xs"
+              :min="1"
+              @input="isDirty = true"
+            />
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
       <!-- Hooks 钩子管理 -->
       <!-- ============================================================ -->
       <section class="oc-panel p-4">
@@ -1153,7 +1336,7 @@ watch(
         </div>
       </section>
       <!-- ============================================================ -->
-      <!-- Skills 配置 -->
+      <!-- Skills 配置（新版：load.extraDirs） -->
       <!-- ============================================================ -->
       <section class="oc-panel p-4">
         <h4 class="flex items-center gap-2 mb-4" style="font-size: var(--text-base); font-weight: var(--font-weight-semibold); color: var(--oc-text-primary);">
@@ -1161,18 +1344,32 @@ watch(
           Skills 配置
         </h4>
 
-        <div class="grid grid-cols-2 gap-4">
-          <!-- Node Manager -->
-          <div class="config-card rounded-lg p-3" style="background: var(--oc-card-elevated);">
-            <div class="flex items-center gap-1 mb-2">
-              <span class="text-xs font-medium" style="color: var(--oc-text-secondary);">Node.js 包管理器</span>
-              <HelpTooltip title="Node.js 包管理器" content="技能安装时使用的包管理器。推荐 pnpm（速度快、磁盘占用小）。如果项目已有 lockfile，建议选择对应的包管理器以保持一致。" />
-            </div>
-            <StyledSelect
-              v-model="nodeManager"
-              :options="nodeManagerOptions"
-              @change="isDirty = true"
+        <div class="config-card rounded-lg p-3" style="background: var(--oc-card-elevated);">
+          <div class="flex items-center gap-1 mb-2">
+            <span class="text-xs font-medium" style="color: var(--oc-text-secondary);">额外技能目录（extraDirs）</span>
+            <HelpTooltip title="额外技能目录" content="OpenClaw 2026.4.x+ 新增：指定额外的技能加载目录列表。这些目录中的技能将被自动加载。" />
+          </div>
+          <div class="flex flex-wrap gap-1.5 min-h-[28px]">
+            <Badge
+              v-for="dir in skillsExtraDirs" :key="dir" variant="accent"
+              class="cursor-pointer group"
+              @click="skillsExtraDirsTag.pop(dir)"
+            >
+              {{ dir }}
+              <Trash2 class="w-3 h-3 opacity-60 group-hover:opacity-100" />
+            </Badge>
+            <span v-if="skillsExtraDirs.length === 0" class="text-xs italic" style="color: var(--oc-text-muted);">
+              未配置额外技能目录
+            </span>
+          </div>
+          <div class="flex gap-1 mt-1.5">
+            <Input
+              v-model="skillsExtraDirsInput"
+              placeholder="输入目录路径..."
+              class="h-7 text-xs flex-1"
+              @keydown="skillsExtraDirsTag.onKeydown($event)"
             />
+            <Button variant="ghost" size="sm" class="h-7 px-2 text-xs" @click="skillsExtraDirsTag.push()">+</Button>
           </div>
         </div>
       </section>
