@@ -11,6 +11,7 @@ export type NavPage =
   | 'cron-jobs'
   | 'tools-session'
   | 'gateway'
+  | 'remote-dashboard'
 
 export interface NavItem {
   id: NavPage
@@ -30,5 +31,6 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { id: 'cron-jobs', label: 'Cron 定时任务', optional: true },
   { id: 'tools-session', label: '高级配置', optional: true },
   { id: 'gateway', label: '网关配置', optional: true },
+  { id: 'remote-dashboard', label: '远程主机', optional: true },
   { id: 'settings', label: '系统设置' },
 ] as const

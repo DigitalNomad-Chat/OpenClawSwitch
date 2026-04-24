@@ -27,7 +27,8 @@ import {
   Settings2,
   Sparkles,
   Users,
-  Clock
+  Clock,
+  Monitor
 } from 'lucide-vue-next'
 
 const iconMap: Record<string, Component> = {
@@ -39,7 +40,8 @@ const iconMap: Record<string, Component> = {
   Settings2,
   Sparkles,
   Users,
-  Clock
+  Clock,
+  Monitor
 }
 
 const iconComponent = computed(() => {

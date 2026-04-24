@@ -13,6 +13,7 @@ import SettingsCard from './cards/SettingsCard.vue'
 import SkillPresetsCard from './cards/SkillPresetsCard.vue'
 import AgentWorkspacesCard from './cards/AgentWorkspacesCard.vue'
 import CronJobsCard from './cards/CronJobsCard.vue'
+import RemoteHostsCard from './cards/RemoteHostsCard.vue'
 
 interface DiagnosticResults {
   passed: number
@@ -56,6 +57,8 @@ interface Props {
   totalJobs?: number
   enabledJobs?: number
   jobsWithErrors?: number
+  // Workspace
+  activeWorkspaceId?: string | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -81,7 +84,8 @@ const props = withDefaults(defineProps<Props>(), {
   activeWorkspacesCount: 0,
   totalJobs: 0,
   enabledJobs: 0,
-  jobsWithErrors: 0
+  jobsWithErrors: 0,
+  activeWorkspaceId: null
 })
 
 const emit = defineEmits<{
@@ -92,72 +96,86 @@ const emit = defineEmits<{
 // 当前激活的卡片
 const activeCardId = computed(() => props.activeNav)
 
-// 卡片配置
-const dashboardCards = ref([
-  {
-    id: 'overview' as NavPage,
-    title: '服务状态',
-    icon: 'Activity',
-    component: markRaw(StatusCard),
-    alwaysVisible: true
-  },
-  {
-    id: 'ai-config' as NavPage,
-    title: '配置管理',
-    icon: 'Settings',
-    component: markRaw(ConfigCard),
-    alwaysVisible: true
-  },
-  {
-    id: 'bindings' as NavPage,
-    title: '绑定管理',
-    icon: 'Link',
-    component: markRaw(BindingCard),
-    alwaysVisible: true
-  },
-  {
-    id: 'skill-presets' as NavPage,
-    title: '技能预设',
-    icon: 'Sparkles',
-    component: markRaw(SkillPresetsCard),
-    alwaysVisible: true
-  },
-  {
-    id: 'agent-workspaces' as NavPage,
-    title: 'Agent工作空间',
-    icon: 'Users',
-    component: markRaw(AgentWorkspacesCard),
-    alwaysVisible: true
-  },
-  {
-    id: 'cron-jobs' as NavPage,
-    title: 'Cron定时任务',
-    icon: 'Clock',
-    component: markRaw(CronJobsCard),
-    alwaysVisible: true
-  },
-  {
-    id: 'diagnostics' as NavPage,
-    title: '诊断工具',
-    icon: 'Stethoscope',
-    component: markRaw(DiagnosticsCard),
-    alwaysVisible: true
-  },
-  {
-    id: 'channels' as NavPage,
-    title: '消息渠道',
-    icon: 'MessageSquare',
-    component: markRaw(ChannelsCard),
-    alwaysVisible: true
-  },
-  {
-    id: 'settings' as NavPage,
-    title: '系统设置',
-    icon: 'Settings2',
-    component: markRaw(SettingsCard),
-    alwaysVisible: true
+// 卡片配置（动态根据 Workspace 状态插入远程主机卡片）
+const dashboardCards = computed(() => {
+  const cards = [
+    {
+      id: 'overview' as NavPage,
+      title: '服务状态',
+      icon: 'Activity',
+      component: markRaw(StatusCard),
+      alwaysVisible: true
+    },
+    {
+      id: 'ai-config' as NavPage,
+      title: '配置管理',
+      icon: 'Settings',
+      component: markRaw(ConfigCard),
+      alwaysVisible: true
+    },
+    {
+      id: 'bindings' as NavPage,
+      title: '绑定管理',
+      icon: 'Link',
+      component: markRaw(BindingCard),
+      alwaysVisible: true
+    },
+    {
+      id: 'skill-presets' as NavPage,
+      title: '技能预设',
+      icon: 'Sparkles',
+      component: markRaw(SkillPresetsCard),
+      alwaysVisible: true
+    },
+    {
+      id: 'agent-workspaces' as NavPage,
+      title: 'Agent工作空间',
+      icon: 'Users',
+      component: markRaw(AgentWorkspacesCard),
+      alwaysVisible: true
+    },
+    {
+      id: 'cron-jobs' as NavPage,
+      title: 'Cron定时任务',
+      icon: 'Clock',
+      component: markRaw(CronJobsCard),
+      alwaysVisible: true
+    },
+    {
+      id: 'diagnostics' as NavPage,
+      title: '诊断工具',
+      icon: 'Stethoscope',
+      component: markRaw(DiagnosticsCard),
+      alwaysVisible: true
+    },
+    {
+      id: 'channels' as NavPage,
+      title: '消息渠道',
+      icon: 'MessageSquare',
+      component: markRaw(ChannelsCard),
+      alwaysVisible: true
+    },
+    {
+      id: 'settings' as NavPage,
+      title: '系统设置',
+      icon: 'Settings2',
+      component: markRaw(SettingsCard),
+      alwaysVisible: true
+    }
+  ]
+
+  if (props.activeWorkspaceId) {
+    cards.splice(1, 0, {
+      id: 'remote-dashboard' as NavPage,
+      title: '远程主机',
+      icon: 'Monitor',
+      component: markRaw(RemoteHostsCard),
+      alwaysVisible: true
+    })
   }
-])
+
+  return cards
+})
 
 // 卡片点击处理
 const handleCardClick = (cardId: NavPage) => {

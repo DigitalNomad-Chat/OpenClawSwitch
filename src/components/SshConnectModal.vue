@@ -13,7 +13,7 @@ import type { SshProfile, SshAuthMode, FingerprintInfo } from '@/types/config'
 
 const emit = defineEmits<{
   close: []
-  connected: []
+  connected: [profile: SshProfile]
   fingerprint: [info: FingerprintInfo, onConfirm: () => void]
 }>()
 
@@ -32,6 +32,7 @@ const connecting = ref(false)
 const error = ref('')
 const savedProfiles = ref<SshProfile[]>([])
 const showSaveForm = ref(false)
+const selectedProfileId = ref<string | null>(null)
 
 // 加载已保存的连接配置
 const loadProfiles = async () => {
@@ -51,6 +52,7 @@ const selectProfile = (profile: SshProfile) => {
   password.value = profile.password || ''
   keyPath.value = profile.keyPath || ''
   profileName.value = profile.name
+  selectedProfileId.value = profile.id
   error.value = ''
 }
 
@@ -135,7 +137,19 @@ const connect = async () => {
             passphrase: passphrase.value || null,
           })
         }
-        emit('connected')
+
+        // 构造并返回本次连接使用的 profile（若未选择已保存配置则生成新 id）
+        const resolvedProfile: SshProfile = {
+          id: selectedProfileId.value || crypto.randomUUID(),
+          name: profileName.value.trim() || `${username.value.trim()}@${host.value.trim()}`,
+          host: host.value.trim(),
+          port: port.value,
+          username: username.value.trim(),
+          authMode: authMode.value,
+          password: authMode.value === 'password' ? password.value : undefined,
+          keyPath: authMode.value === 'privateKey' ? keyPath.value : undefined,
+        }
+        emit('connected', resolvedProfile)
       } catch (e) {
         error.value = `认证失败: ${e}`
         connecting.value = false

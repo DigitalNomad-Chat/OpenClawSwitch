@@ -24,8 +24,10 @@ import AgentWorkspacesPage from './components/pages/AgentWorkspacesPage.vue'
 import CronJobsPage from './components/pages/CronJobsPage.vue'
 import ToolsSessionPage from './components/pages/ToolsSessionPage.vue'
 import GatewayConfigPage from './components/pages/GatewayConfigPage.vue'
+import RemoteDashboardPage from './components/pages/RemoteDashboardPage.vue'
 import AIAssistantPanel from './components/ai-assistant/AIAssistantPanel.vue'
 import SshConnectModal from './components/SshConnectModal.vue'
+import WorkspaceSetupModal from './components/WorkspaceSetupModal.vue'
 import SshFingerprintDialog from './components/SshFingerprintDialog.vue'
 import Button from './components/ui/Button.vue'
 import Card from './components/ui/Card.vue'
@@ -37,6 +39,8 @@ import LogModal from './components/dashboard/LogModal.vue'
 import DashboardGrid from './components/dashboard/DashboardGrid.vue'
 import TopBar from './components/dashboard/TopBar.vue'
 import DockBar from './components/dashboard/DockBar.vue'
+import { useWorkspaceStore } from './composables/useWorkspaceStore'
+import { useWorkspaceConfig } from './composables/useWorkspaceConfig'
 import { deriveAppState } from './domain/appState'
 import { NAV_ITEMS, type NavPage } from './domain/navigation'
 import { isPrimaryModelPlaceholder } from './domain/configValidation'
@@ -88,8 +92,14 @@ const currentEnvIndex = ref(0)
 const currentEnv = computed(() => environments.value[currentEnvIndex.value])
 const targetMode = ref<EnvMode | null>(null)
 
+// Workspace Store（远程工作区管理）
+const workspaceStore = useWorkspaceStore()
+const workspaceConfig = useWorkspaceConfig()
+
 const showEnvDropdown = ref(false)
 const showSshModal = ref(false)
+const showWorkspaceSetupModal = ref(false)
+const pendingConnectedProfile = ref<SshProfile | null>(null)
 const showFingerprintDialog = ref(false)
 const showLogModal = ref(false)
 const sshConnected = ref(false)
@@ -209,6 +219,10 @@ const navMeta: Record<NavPage, { title: string; subtitle: string }> = {
     title: '模型配置',
     subtitle: '保存配置文件并调整模型路由。',
   },
+  'ai-assistant': {
+    title: 'AI 助手',
+    subtitle: '与 OpenClaw AI 助手进行交互。',
+  },
   bindings: {
     title: '绑定管理',
     subtitle: '配置 Agent 与消息渠道的绑定关系。',
@@ -244,6 +258,10 @@ const navMeta: Record<NavPage, { title: string; subtitle: string }> = {
   settings: {
     title: '系统设置',
     subtitle: '管理环境、SSH Profile 与连接偏好。',
+  },
+  'remote-dashboard': {
+    title: '远程主机',
+    subtitle: '管理远程 SSH 主机、挂载点和 tmux 会话。',
   },
 }
 
@@ -468,9 +486,9 @@ const runOpenClawUninstall = async (removeConfigDir: boolean) => {
 }
 
 const runGatewayStartCommand = async () => {
-  if (currentEnv.value.mode === 'ssh') {
-    if (!sshConnected.value) {
-      throw new Error('SSH 未连接，无法启动远程网关')
+  if (!workspaceStore.isLocalMode.value) {
+    if (workspaceStore.connectionStatus.value !== 'connected') {
+      throw new Error('远程未连接，无法启动网关')
     }
     await invoke('ssh_start_gateway')
     return
@@ -480,9 +498,8 @@ const runGatewayStartCommand = async () => {
 
 const checkGatewayHealth = async (): Promise<boolean> => {
   try {
-    if (currentEnv.value.mode === 'ssh') {
-      if (!sshConnected.value) return false
-      return await invoke<boolean>('ssh_health_check')
+    if (!workspaceStore.isLocalMode.value) {
+      return await workspaceConfig.healthCheck()
     }
     return await invoke<boolean>('health_check_gateway')
   } catch {
@@ -559,19 +576,19 @@ const syncConfigSignals = async () => {
   let config: OpenClawConfig | null = null
 
   try {
-    if (currentEnv.value.mode === 'ssh' && sshConnected.value) {
-      const results = await invoke<Array<{ path: string }>>('ssh_search_config')
-      if (!results.length) {
-        configLoaded.value = false
-        primaryModelValid.value = false
-      } else {
-        const raw = await invoke<string>('ssh_read_file', { path: results[0].path })
-        config = JSON.parse(raw) as OpenClawConfig
+    if (!workspaceStore.isLocalMode.value) {
+      await workspaceConfig.loadConfig()
+      if (workspaceConfig.configSource.value) {
+        config = workspaceConfig.configSource.value.config
         const primary = config.agents?.defaults?.model?.primary
         configLoaded.value = true
         primaryModelValid.value = !isPrimaryModelPlaceholder(primary)
+        configFilePath.value = workspaceStore.activeWorkspace.value?.accessTier === 'ssh_channel' ? '' : (workspaceConfig.configSource.value.fileInfo.path || '')
+      } else {
+        configLoaded.value = false
+        primaryModelValid.value = false
+        configFilePath.value = ''
       }
-      configFilePath.value = ''
     } else {
       const [configData, info] = await invoke<[OpenClawConfig, ConfigFileInfo]>('load_default_config')
       config = configData
@@ -647,23 +664,13 @@ const syncConfigSignals = async () => {
 
   // 解析 Skill 预设、Agent 工作空间、Cron 定时任务统计数据
   try {
-    // 获取 Cron 定时任务统计
-    if (currentEnv.value.mode === 'ssh' && sshConnected.value) {
-      const jobs = await invoke<any[]>('ssh_get_cron_jobs')
-      totalJobs.value = jobs.length
-      enabledJobs.value = jobs.filter((j: any) => j.enabled).length
-      jobsWithErrors.value = jobs.filter((j: any) =>
-        j.state?.lastRunStatus === 'error' || (j.state?.consecutiveErrors || 0) > 0
-      ).length
-    } else {
-      const result = await invoke<{ jobs: any[]; warnings: any[]; repairedCount: number }>('get_cron_jobs')
-      const jobList = result.jobs ?? []
-      totalJobs.value = jobList.length
-      enabledJobs.value = jobList.filter((j: any) => j.enabled).length
-      jobsWithErrors.value = jobList.filter((j: any) =>
-        j.state?.lastRunStatus === 'error' || (j.state?.consecutiveErrors || 0) > 0
-      ).length
-    }
+    const result = await invoke<{ jobs: any[]; warnings: any[]; repairedCount: number }>('get_cron_jobs')
+    const jobList = result.jobs ?? []
+    totalJobs.value = jobList.length
+    enabledJobs.value = jobList.filter((j: any) => j.enabled).length
+    jobsWithErrors.value = jobList.filter((j: any) =>
+      j.state?.lastRunStatus === 'error' || (j.state?.consecutiveErrors || 0) > 0
+    ).length
   } catch (error) {
     console.error('[Cron Jobs] 加载失败:', error)
     totalJobs.value = 0
@@ -672,17 +679,9 @@ const syncConfigSignals = async () => {
   }
 
   try {
-    // 获取 Skill 预设统计
-    if (currentEnv.value.mode === 'ssh' && sshConnected.value) {
-      // SSH 模式暂不支持
-      presetsCount.value = 0
-      activePresetsCount.value = 0
-    } else {
-      const skills = await invoke<any[]>('get_skills_with_status')
-      presetsCount.value = skills.length
-      // 统计已安装并启用的预设
-      activePresetsCount.value = skills.filter((s: any) => s.installed && s.enabled).length
-    }
+    const skills = await invoke<any[]>('get_skills_with_status')
+    presetsCount.value = skills.length
+    activePresetsCount.value = skills.filter((s: any) => s.installed && s.enabled).length
   } catch (error) {
     console.error('[Skill Presets] 加载失败:', error)
     presetsCount.value = 0
@@ -690,17 +689,9 @@ const syncConfigSignals = async () => {
   }
 
   try {
-    // 获取 Agent 工作空间统计
-    if (currentEnv.value.mode === 'ssh' && sshConnected.value) {
-      // SSH 模式暂不支持
-      workspacesCount.value = 0
-      activeWorkspacesCount.value = 0
-    } else {
-      const workspaces = await invoke<any[]>('get_all_agent_workspaces')
-      workspacesCount.value = workspaces.length
-      // 统计活跃的工作空间（默认都视为可用，因为没有启用/禁用状态）
-      activeWorkspacesCount.value = workspaces.length
-    }
+    const workspaces = await invoke<any[]>('get_all_agent_workspaces')
+    workspacesCount.value = workspaces.length
+    activeWorkspacesCount.value = workspaces.length
   } catch (error) {
     console.error('[Agent Workspaces] 加载失败:', error)
     workspacesCount.value = 0
@@ -709,14 +700,13 @@ const syncConfigSignals = async () => {
 
   try {
     console.log('[syncConfigSignals] 开始网关健康检查', {
-      mode: currentEnv.value.mode,
-      sshConnected: sshConnected.value,
+      isLocalMode: workspaceStore.isLocalMode.value,
       before: gatewayReachable.value
     })
 
-    if (currentEnv.value.mode === 'ssh' && sshConnected.value) {
-      gatewayReachable.value = await invoke<boolean>('ssh_health_check')
-      console.log('[syncConfigSignals] SSH 健康检查结果:', gatewayReachable.value)
+    if (!workspaceStore.isLocalMode.value) {
+      gatewayReachable.value = await workspaceConfig.healthCheck()
+      console.log('[syncConfigSignals] 远程健康检查结果:', gatewayReachable.value)
     } else {
       gatewayReachable.value = await invoke<boolean>('health_check_gateway')
       console.log('[syncConfigSignals] 本地健康检查结果:', gatewayReachable.value)
@@ -740,7 +730,7 @@ const openConfigFile = async () => {
 }
 
 const syncGatewayServiceInstallState = async () => {
-  if (!isWindows || currentEnv.value.mode !== 'local' || !openclawInstalled.value) {
+  if (!isWindows || !workspaceStore.isLocalMode.value || !openclawInstalled.value) {
     gatewayServiceInstalled.value = true
     return
   }
@@ -765,23 +755,14 @@ const checkEnvironment = async () => {
   gatewayChecking.value = true
 
   try {
-    console.log('[checkEnvironment] 调用环境检测命令', { mode: currentEnv.value.mode, sshConnected: sshConnected.value })
+    console.log('[checkEnvironment] 调用环境检测命令', { isLocalMode: workspaceStore.isLocalMode.value })
 
-    if (currentEnv.value.mode === 'ssh') {
-      if (!sshConnected.value) {
-        console.log('[checkEnvironment] SSH 未连接，跳过检测')
-        envStatus.value = null
-        configLoaded.value = false
-        primaryModelValid.value = false
-        gatewayReachable.value = false
-        gatewayServiceInstalled.value = true
-      } else {
-        envStatus.value = await invoke<EnvironmentStatus>('ssh_check_environment')
-        console.log('[checkEnvironment] SSH 环境检测结果:', {
-          openclawInstalled: envStatus.value?.openclaw?.installed,
-          nodeInstalled: envStatus.value?.node?.installed
-        })
-      }
+    if (!workspaceStore.isLocalMode.value) {
+      envStatus.value = await workspaceConfig.checkEnvironment()
+      console.log('[checkEnvironment] 远程环境检测结果:', {
+        openclawInstalled: envStatus.value?.openclaw?.installed,
+        nodeInstalled: envStatus.value?.node?.installed
+      })
     } else {
       envStatus.value = await invoke<EnvironmentStatus>('check_environment')
       console.log('[checkEnvironment] 本地环境检测结果:', {
@@ -883,6 +864,11 @@ const handleCardAction = (cardId: NavPage, action: string) => {
       break
     case 'settings':
       handleSettingsCardAction(action)
+      break
+    case 'remote-dashboard':
+      if (action === 'manage') {
+        navigateTo('remote-dashboard')
+      }
       break
   }
 }
@@ -1020,6 +1006,7 @@ const selectEnvironment = async (index: number) => {
         // ignored
       }
       sshConnected.value = false
+      workspaceStore.setConnectionStatus('disconnected')
     }
     await checkEnvironment()
     return
@@ -1100,18 +1087,17 @@ interface BrowserSettingConfigSource {
 }
 
 const resolveCurrentConfigSource = async (): Promise<BrowserSettingConfigSource> => {
-  if (currentEnv.value.mode === 'ssh') {
-    if (!sshConnected.value) {
-      throw new Error('SSH 未连接')
+  if (!workspaceStore.isLocalMode.value) {
+    await workspaceConfig.loadConfig()
+    if (!workspaceConfig.configSource.value) {
+      throw new Error(workspaceConfig.error.value || '加载配置失败')
     }
-    const results = await invoke<Array<{ path: string }>>('ssh_search_config')
-    if (!results.length) {
-      throw new Error('未找到远程配置文件')
+    const { config, fileInfo } = workspaceConfig.configSource.value
+    return {
+      mode: workspaceStore.activeWorkspace.value?.accessTier === 'ssh_channel' ? 'ssh' : 'local',
+      path: fileInfo.path || '',
+      config,
     }
-    const path = results[0].path
-    const raw = await invoke<string>('ssh_read_file', { path })
-    const config = JSON.parse(raw) as OpenClawConfig
-    return { mode: 'ssh', path, config }
   }
 
   const [config, info] = await invoke<[OpenClawConfig, ConfigFileInfo]>('load_default_config')
@@ -1123,11 +1109,8 @@ const resolveCurrentConfigSource = async (): Promise<BrowserSettingConfigSource>
 }
 
 const persistCurrentConfigSource = async (source: BrowserSettingConfigSource) => {
-  if (source.mode === 'ssh') {
-    await invoke('ssh_write_file', {
-      path: source.path,
-      content: JSON.stringify(source.config, null, 2),
-    })
+  if (!workspaceStore.isLocalMode.value) {
+    await workspaceConfig.saveConfig(source.config)
     return
   }
   await invoke('save_config', {
@@ -1153,12 +1136,6 @@ const loadBrowserToolSetting = async () => {
   if (!openclawInstalled.value) {
     browserDefaultProfileEnabled.value = false
     browserSettingError.value = '当前环境未安装 OpenClaw，无法读取配置'
-    return
-  }
-
-  if (currentEnv.value.mode === 'ssh' && !sshConnected.value) {
-    browserDefaultProfileEnabled.value = false
-    browserSettingError.value = 'SSH 未连接，无法读取远程配置'
     return
   }
 
@@ -1246,14 +1223,63 @@ const rejectFingerprint = async () => {
     // ignored
   }
   sshConnected.value = false
+  workspaceStore.setConnectionStatus('error', '已拒绝 SSH 指纹，连接已取消')
   showToast('error', '已拒绝 SSH 指纹，连接已取消')
 }
 
-const handleSshConnected = async () => {
+const handleSshConnected = async (profile: SshProfile) => {
   sshConnected.value = true
   showSshModal.value = false
+  workspaceStore.setConnectionStatus('connected')
+
+  // 检查并保存 SSH Profile（若为新连接则持久化）
+  const existingProfiles = await invoke<SshProfile[]>('ssh_load_profiles')
+  const exists = existingProfiles.some(p => p.id === profile.id)
+  if (!exists) {
+    try {
+      await invoke('ssh_save_profile', { profile })
+    } catch (e) {
+      console.error('保存 SSH Profile 失败:', e)
+    }
+  }
+
+  // 检查该 profile 是否已有对应 Workspace
+  const existingWorkspaces = workspaceStore.workspaces.value
+  const hasWorkspace = existingWorkspaces.some(ws => ws.sshProfileId === profile.id)
+  if (!hasWorkspace) {
+    pendingConnectedProfile.value = profile
+    showWorkspaceSetupModal.value = true
+  } else {
+    // 若已有 Workspace，自动切换到对应的第一个
+    const ws = existingWorkspaces.find(w => w.sshProfileId === profile.id)
+    if (ws) {
+      try {
+        await workspaceStore.setActiveWorkspace(ws.id)
+      } catch (err) {
+        showToast('error', `切换 Workspace 失败: ${err}`)
+      }
+    }
+  }
+
   await checkEnvironment()
   showToast('success', 'SSH 连接成功')
+}
+
+const handleWorkspaceSaved = async (workspace: import('./types/workspace').Workspace) => {
+  showWorkspaceSetupModal.value = false
+  try {
+    await workspaceStore.saveWorkspace(workspace)
+    try {
+      await workspaceStore.setActiveWorkspace(workspace.id)
+      showToast('success', `Workspace "${workspace.name}" 已保存并激活`)
+    } catch (e) {
+      showToast('error', `激活 Workspace 失败: ${e}`)
+    }
+  } catch (e) {
+    showToast('error', `保存 Workspace 失败: ${e}`)
+  } finally {
+    pendingConnectedProfile.value = null
+  }
 }
 
 const openDashboard = async () => {
@@ -1316,8 +1342,8 @@ const openToolPanel = async (toolId: string) => {
     showToast('info', '正在重启网关，请等待...')
     await runWithPendingTool(toolId, async () => {
       try {
-        if (currentEnv.value.mode === 'ssh') {
-          await invoke('ssh_restart_gateway')
+        if (!workspaceStore.isLocalMode.value) {
+          await workspaceConfig.restartGateway()
         } else {
           await invoke('restart_gateway')
         }
@@ -1349,7 +1375,7 @@ const openToolPanel = async (toolId: string) => {
     showToast('info', '正在启动网关，请稍候...')
     await runWithPendingTool(toolId, async () => {
       try {
-        if (currentEnv.value.mode === 'ssh') {
+        if (!workspaceStore.isLocalMode.value) {
           await invoke('ssh_start_gateway')
         } else {
           await invoke('start_gateway')
@@ -1372,7 +1398,7 @@ const openToolPanel = async (toolId: string) => {
     showToast('info', '正在停止网关，请稍候...')
     await runWithPendingTool(toolId, async () => {
       try {
-        if (currentEnv.value.mode === 'ssh') {
+        if (!workspaceStore.isLocalMode.value) {
           await invoke('ssh_stop_gateway')
         } else {
           await invoke('stop_gateway')
@@ -1415,9 +1441,63 @@ const handleQuickSetupClose = () => {
   quickSetupResumePending.value = false
 }
 
+const handleWorkspaceChanged = async (workspaceId: string | null) => {
+  // 桥接到现有的环境切换逻辑
+  if (workspaceId === null) {
+    await chooseLocalTarget()
+    return
+  }
+  // 远程模式：更新现有 environments 数组以兼容旧逻辑
+  const ws = workspaceStore.workspaces.value.find(w => w.id === workspaceId)
+  if (!ws) return
+
+  // manual_mount 且无 SSH 配置时，直接激活并检测环境，不走 SSH 连接流程
+  if (!ws.sshProfileId) {
+    try {
+      await workspaceStore.setActiveWorkspace(ws.id)
+      workspaceStore.setConnectionStatus('connected')
+      await checkEnvironment()
+    } catch (err) {
+      showToast('error', `切换 Workspace 失败: ${err}`)
+    }
+    return
+  }
+
+  await loadSshProfiles()
+  const sshIndex = environments.value.findIndex(e => e.sshProfile?.id === ws.sshProfileId)
+  if (sshIndex >= 0) {
+    await selectEnvironment(sshIndex)
+  } else {
+    // 如果环境列表中还没有，弹出 SSH 连接模态框
+    chooseSshTarget()
+  }
+}
+
+const handleAddRemoteWorkspace = () => {
+  addSshEnvironment()
+}
+
+const handleAddLocalMountWorkspace = () => {
+  pendingConnectedProfile.value = null
+  showWorkspaceSetupModal.value = true
+}
+
+const handleConnectSsh = async (profileId: string) => {
+  // 如果已经连接的是同一个 profile，无需重连
+  if (sshConnected.value && currentEnv.value.sshProfile?.id === profileId) {
+    workspaceStore.setConnectionStatus('connected')
+    return
+  }
+  workspaceStore.setConnectionStatus('connecting')
+  // SSH 连接实际由 SshConnectModal 处理，这里只是更新状态
+  // 等待 SshConnectModal 的 connected 事件再更新为 connected
+}
+
 onMounted(async () => {
   loadThemeMode()
   document.addEventListener('click', handleGlobalClick)
+  // 加载 Workspace 列表
+  workspaceStore.loadWorkspaces().catch(console.error)
   // 异步执行环境检测，不阻塞初始渲染
   loadSshProfiles().catch(console.error)
   checkEnvironment().catch(console.error)
@@ -1439,6 +1519,10 @@ onUnmounted(() => {
         :theme-mode="themeMode"
         @navigate="navigateTo"
         @theme-change="applyThemeMode"
+        @workspace-changed="handleWorkspaceChanged"
+        @add-remote-workspace="handleAddRemoteWorkspace"
+        @add-local-mount-workspace="handleAddLocalMountWorkspace"
+        @connect-ssh="handleConnectSsh"
       />
 
       <!-- 主内容区域 -->
@@ -1469,6 +1553,7 @@ onUnmounted(() => {
           :total-jobs="totalJobs"
           :enabled-jobs="enabledJobs"
           :jobs-with-errors="jobsWithErrors"
+          :active-workspace-id="workspaceStore.activeWorkspaceId.value"
           @navigate="navigateTo"
           @action="handleCardAction"
         />
@@ -1661,8 +1746,6 @@ onUnmounted(() => {
                 v-if="envStatus && openclawInstalled"
                 class="oc-page-root"
                 :show-toast="showToast"
-                :env-mode="currentEnv.mode"
-                :env-ssh-connected="sshConnected"
               />
               <div v-else class="oc-panel p-6">
                 <h3 class="text-lg font-semibold" style="color: var(--oc-text-primary);">模型配置不可用</h3>
@@ -1675,8 +1758,6 @@ onUnmounted(() => {
                 v-if="envStatus && openclawInstalled"
                 class="oc-page-root"
                 :show-toast="showToast"
-                :env-mode="currentEnv.mode"
-                :env-ssh-connected="sshConnected"
               />
               <div v-else class="oc-panel p-6">
                 <h3 class="text-lg font-semibold" style="color: var(--oc-text-primary);">绑定管理不可用</h3>
@@ -1717,8 +1798,6 @@ onUnmounted(() => {
               <ToolsSessionPage
                 class="h-full min-h-0"
                 :show-toast="showToast"
-                :env-mode="currentEnv.mode"
-                :env-ssh-connected="sshConnected"
               />
             </div>
 
@@ -1726,9 +1805,11 @@ onUnmounted(() => {
               <GatewayConfigPage
                 class="h-full min-h-0"
                 :show-toast="showToast"
-                :env-mode="currentEnv.mode"
-                :env-ssh-connected="sshConnected"
               />
+            </div>
+
+            <div v-else-if="activeNav === 'remote-dashboard'" class="oc-page-root">
+              <RemoteDashboardPage class="h-full min-h-0" :show-toast="showToast" />
             </div>
 
             <div v-else class="space-y-3">
@@ -1908,6 +1989,14 @@ onUnmounted(() => {
       @close="showSshModal = false"
       @connected="handleSshConnected"
       @fingerprint="handleFingerprint"
+    />
+
+    <!-- Workspace 保存引导模态框 -->
+    <WorkspaceSetupModal
+      v-if="showWorkspaceSetupModal"
+      :profile="pendingConnectedProfile || undefined"
+      @close="showWorkspaceSetupModal = false; pendingConnectedProfile = null"
+      @saved="handleWorkspaceSaved"
     />
 
     <SshFingerprintDialog

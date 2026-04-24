@@ -12,7 +12,8 @@ import {
   Users,
   Clock,
   SlidersHorizontal,
-  Server
+  Server,
+  Globe
 } from 'lucide-vue-next'
 
 interface DockItem {
@@ -93,6 +94,12 @@ const dockItems = computed<DockItem[]>(() => [
     label: '网关配置',
     icon: Server,
     active: props.activeNav === 'gateway'
+  },
+  {
+    id: 'remote-dashboard',
+    label: '远程主机',
+    icon: Globe,
+    active: props.activeNav === 'remote-dashboard'
   },
   {
     id: 'settings',

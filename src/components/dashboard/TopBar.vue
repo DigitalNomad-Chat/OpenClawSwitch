@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { Search, Sun, Moon, Monitor, ChevronDown, User } from 'lucide-vue-next'
+import WorkspaceSwitcher from './WorkspaceSwitcher.vue'
 
 interface Props {
   activeNav?: string
@@ -15,6 +16,10 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   navigate: [id: string]
   themeChange: [mode: 'system' | 'light' | 'dark']
+  workspaceChanged: [workspaceId: string | null]
+  addRemoteWorkspace: []
+  addLocalMountWorkspace: []
+  connectSsh: [profileId: string]
 }>()
 
 // 命令面板状态
@@ -77,6 +82,16 @@ const openCommandPalette = () => {
       </div>
     </div>
 
+    <!-- 中部：Workspace 切换器 -->
+    <div class="top-bar-center">
+      <WorkspaceSwitcher
+        @workspace-changed="$emit('workspaceChanged', $event)"
+        @add-remote="$emit('addRemoteWorkspace')"
+        @add-local-mount="$emit('addLocalMountWorkspace')"
+        @connect-ssh="$emit('connectSsh', $event)"
+      />
+    </div>
+
     <!-- 右侧：搜索和操作 -->
     <div class="top-bar-right">
       <!-- 命令搜索按钮 -->
@@ -126,6 +141,7 @@ const openCommandPalette = () => {
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--oc-divider-soft);
   position: relative;
+  z-index: 200;
 }
 
 /* 顶部装饰线 */
@@ -187,6 +203,17 @@ const openCommandPalette = () => {
   font-size: var(--text-sm);
   color: var(--oc-text-secondary);
   font-weight: var(--font-weight-medium);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   中部区域 - Center Section
+   ═══════════════════════════════════════════════════════════ */
+
+.top-bar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
 }
 
 /* ═══════════════════════════════════════════════════════════
