@@ -122,8 +122,8 @@ pub struct ConfigSearchResult {
 // ============================================================================
 
 /// SSH 閺夆晝鍋炵敮鎾偐閼哥鍋撴笟濠勭闁归晲鐒﹀﹢?Session 闁告粌鐭佺换娑㈠箳閵夈倓绻嗛柟?
-struct SshConnection {
-    session: Session,
+pub(crate) struct SshConnection {
+    pub(crate) session: Session,
     #[allow(dead_code)]
     host: String,
     username: String,
@@ -131,7 +131,7 @@ struct SshConnection {
 
 /// SSH 缂佺媴绱曢幃濠囧闯椤帞绀夌紒鎹愭硶閳昏偐鈧怀顦崣蹇涙儍閸曨喚绠鹃柟鎭掑劤婵悂骞€娴ｅ壊鍟囬柛?
 pub struct SshManager {
-    connection: Mutex<Option<SshConnection>>,
+    pub(crate) connection: Mutex<Option<SshConnection>>,
 }
 
 impl SshManager {
@@ -432,24 +432,12 @@ pub fn ssh_read_file(
     exec_remote_command(&conn.session, &cmd)
 }
 
-/// 闁告劖鐟ラ崣鍡樻交濠婂應鏌ら柡鍌氭矗濞嗐垽鏁嶉崼銉㈠亾濮樺磭绠?channel stdin闁?
-#[tauri::command]
-pub fn ssh_write_file(
-    manager: State<SshManager>,
-    path: String,
-    content: String,
-) -> Result<(), String> {
-    let conn = manager.connection.lock().map_err(|e| format!("{}{}", s!("闂佸じ绶氶弫濠勬嫚? "), e))?;
-    let conn = conn.as_ref().ok_or(s!("SSH connection not found").to_string())?;
-
-    if !conn.session.authenticated() {
-        return Err(s!("SSH authentication required").to_string());
-    }
-
+/// 闁告劖鐟ラ崣鍡樺緞鏉堫偉袝閻犱降鍊涢惁澶愬棘閻熸壆纭€Session
+pub(crate) fn ssh_write_file_content(session: &Session, path: &str, content: &str) -> Result<(), String> {
     let escaped_path = path.replace('\'', "'\\''");
     let cmd = format!("cat > '{}'", escaped_path);
 
-    let mut channel = conn.session
+    let mut channel = session
         .channel_session()
         .map_err(|e| format!("闁告帗绋戠紓鎾绘焻濮樻湹澹曞鎯扮簿鐟? {}", e))?;
     channel
@@ -472,6 +460,23 @@ pub fn ssh_write_file(
     }
 
     Ok(())
+}
+
+/// 闁告劖鐟ラ崣鍡樻交濠婂應鏌ら柡鍌氭矗濞嗐垽鏁嶉崼銉㈠亾濮樺磭绠?channel stdin闁?
+#[tauri::command]
+pub fn ssh_write_file(
+    manager: State<SshManager>,
+    path: String,
+    content: String,
+) -> Result<(), String> {
+    let conn = manager.connection.lock().map_err(|e| format!("{}{}", s!("闂佸じ绶氶弫濠勬嫚? "), e))?;
+    let conn = conn.as_ref().ok_or(s!("SSH connection not found").to_string())?;
+
+    if !conn.session.authenticated() {
+        return Err(s!("SSH authentication required").to_string());
+    }
+
+    ssh_write_file_content(&conn.session, &path, &content)
 }
 
 /// 閺夆晜绮庨埢濂告煂瀹ュ懏鍎欑紓鍐╁灥閸?
@@ -672,7 +677,7 @@ fn get_remote_home(session: &Session) -> Option<String> {
 }
 
 /// 闁圭瑳鍡╂斀閺夆晜绮庨埢濂稿川閹存帗濮㈡鐐村劶缁绘垿宕堕悙瀵割伕闁荤偛妫楅幃妤呮儍閸曨喚缈婚柛?
-fn exec_remote_command(session: &Session, cmd: &str) -> Result<String, String> {
+pub(crate) fn exec_remote_command(session: &Session, cmd: &str) -> Result<String, String> {
     let mut channel = session
         .channel_session()
         .map_err(|e| format!("闁告帗绋戠紓鎾绘焻濮樻湹澹曞鎯扮簿鐟? {}", e))?;

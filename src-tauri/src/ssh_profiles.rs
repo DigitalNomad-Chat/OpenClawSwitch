@@ -9,8 +9,8 @@ use std::path::PathBuf;
 
 /// 配置文件存储结构
 #[derive(Debug, Serialize, Deserialize)]
-struct ProfileStore {
-    profiles: Vec<SshProfile>,
+pub(crate) struct ProfileStore {
+    pub(crate) profiles: Vec<SshProfile>,
 }
 
 /// 获取配置文件存储路径
@@ -27,7 +27,7 @@ fn get_profiles_path() -> Result<PathBuf, String> {
 }
 
 /// 从文件加载配置列表
-fn load_store() -> Result<ProfileStore, String> {
+pub(crate) fn load_store() -> Result<ProfileStore, String> {
     let path = get_profiles_path()?;
     if !path.exists() {
         return Ok(ProfileStore {

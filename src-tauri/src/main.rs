@@ -12,6 +12,9 @@ use obfstr::obfstr as s;
 
 mod ssh;
 mod ssh_profiles;
+mod workspace;
+mod config_resolver;
+mod remote_ops;
 mod installer;
 mod bindings;
 mod skill_presets;
@@ -68,7 +71,7 @@ struct ModelSelectionInfo {
 /// 配置文件信息
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct ConfigFileInfo {
+pub(crate) struct ConfigFileInfo {
     path: String,
     mode: String, // "local" | "remote"
     file_name: String,
@@ -921,40 +924,6 @@ async fn fetch_provider_models(
 // OpenClaw 工具命令
 // ============================================================================
 
-/// 重启 OpenClaw 网关
-#[tauri::command]
-fn restart_gateway() -> Result<String, String> {
-    // 使用 spawn 非阻塞方式执行，避免 GUI 卡死
-    #[cfg(target_os = "windows")]
-    {
-        Command::new("cmd")
-            .args(["/c", s!("openclaw"), "gateway", "restart"])
-            .spawn()
-            .map_err(|e| format!("执行命令失败: {}", e))?;
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        Command::new("sh")
-            .args(["-c", s!("openclaw gateway restart")])
-            .spawn()
-            .map_err(|e| format!("执行命令失败: {}", e))?;
-    }
-
-    Ok("网关重启命令已发送".to_string())
-}
-
-/// 本地健康检查（127.0.0.1:18789）
-#[tauri::command]
-fn health_check_gateway() -> Result<bool, String> {
-    let mut addrs = s!("127.0.0.1:18789")
-        .to_socket_addrs()
-        .map_err(|e| format!("解析地址失败: {}", e))?;
-    let addr = addrs.next().ok_or("无法解析网关地址".to_string())?;
-    let timeout = Duration::from_secs(2);
-    Ok(TcpStream::connect_timeout(&addr, timeout).is_ok())
-}
-
 /// 打开终端并进入 TUI 模式
 #[tauri::command]
 fn open_tui() -> Result<(), String> {
@@ -1037,6 +1006,49 @@ fn open_tui() -> Result<(), String> {
 }
 
 // ============================================================================
+#[tauri::command]
+pub(crate) fn restart_gateway() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let output = std::process::Command::new("cmd")
+            .args(["/c", "openclaw gateway restart"])
+            .output()
+            .map_err(|e| format!("执行命令失败: {}", e))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("网关重启失败: {}", stderr));
+        }
+        Ok("Gateway restart initiated".to_string())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("openclaw gateway restart")
+            .output()
+            .map_err(|e| format!("执行命令失败: {}", e))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("网关重启失败: {}", stderr));
+        }
+        Ok("Gateway restart initiated".to_string())
+    }
+}
+
+#[tauri::command]
+pub(crate) fn health_check_gateway() -> Result<bool, String> {
+    let addr = "127.0.0.1:18789";
+    let timeout = Duration::from_secs(2);
+    match TcpStream::connect_timeout(
+        &addr.parse().map_err(|e| format!("无效地址: {}", e))?,
+        timeout,
+    ) {
+        Ok(_stream) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
 // 主函数
 // ============================================================================
 
@@ -1100,6 +1112,32 @@ fn main() {
             ssh_profiles::ssh_save_profile,
             ssh_profiles::ssh_load_profiles,
             ssh_profiles::ssh_delete_profile,
+            // Workspace 管理
+            workspace::workspace_save,
+            workspace::workspace_load_all,
+            workspace::workspace_delete,
+            workspace::workspace_set_active,
+            workspace::workspace_get_by_id,
+            // Workspace 感知配置操作
+            workspace::workspace_read_config,
+            workspace::workspace_write_config,
+            workspace::workspace_save_config,
+            workspace::workspace_restart_gateway,
+            workspace::workspace_health_check,
+            workspace::workspace_check_environment,
+            // 远程主机操作
+            remote_ops::tailscale_status,
+            remote_ops::tmux_list_sessions,
+            remote_ops::tmux_attach_session,
+            remote_ops::sshfs_detect_macfuse,
+            remote_ops::sshfs_list_mounts,
+            remote_ops::sshfs_mount,
+            remote_ops::sshfs_unmount,
+            remote_ops::detect_sshfs_mounts,
+            remote_ops::remote_ping,
+            remote_ops::remote_dns_resolve,
+            remote_ops::remote_disk_usage,
+            remote_ops::ssh_check_keyless_auth,
             // 安装管理
             installer::check_openclaw_installed,
             installer::check_node_installed,
