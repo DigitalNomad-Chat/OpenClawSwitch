@@ -257,13 +257,8 @@ pub fn update_binding(mut config: Value, index: usize, request: BindingRequest) 
 pub fn get_agent_options(config: Value) -> Result<Vec<(String, String)>, String> {
     let mut agents = vec![(s!("default").to_string(), s!("default").to_string())];
 
-    // 从 agents.defaults 获取默认 agent
-    if let Some(defaults) = config.get("agents").and_then(|a| a.get("defaults")) {
-        let _workspace = defaults.get("workspace").and_then(|w| w.as_str());
-        agents.push((s!("main").to_string(), s!("运营管理总监").to_string()));
-    }
-
-    // 从 agents.list 获取所有 agents
+    // 从 agents.list 获取所有 agents（优先使用配置中的真实名称）
+    let mut has_main = false;
     if let Some(list) = config.get("agents").and_then(|a| a.get("list")).and_then(|l| l.as_array()) {
         for agent in list {
             if let Some(obj) = agent.as_object() {
@@ -271,10 +266,18 @@ pub fn get_agent_options(config: Value) -> Result<Vec<(String, String)>, String>
                 let name = obj.get("name").and_then(|n| n.as_str()).unwrap_or(&id).to_string();
 
                 if !id.is_empty() {
+                    if id == s!("main") {
+                        has_main = true;
+                    }
                     agents.push((id, name));
                 }
             }
         }
+    }
+
+    // 仅当配置中没有 main 且存在 agents.defaults 时，添加 fallback
+    if !has_main && config.get("agents").and_then(|a| a.get("defaults")).is_some() {
+        agents.push((s!("main").to_string(), s!("main").to_string()));
     }
 
     // 去重（保留第一次出现）
