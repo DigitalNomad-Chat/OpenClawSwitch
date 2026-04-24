@@ -373,3 +373,116 @@ fn backup_config(config_path: &PathBuf) -> Result<(), String> {
 
     Ok(())
 }
+
+// ============================================================================
+// Auth Profiles 管理（OpenClaw 2026.4.x+）
+// ============================================================================
+
+/// 获取 auth-profiles.json 路径
+/// 默认 agent 为 "main"
+fn get_auth_profiles_path(agent_id: Option<String>) -> Result<PathBuf, String> {
+    let home_dir = dirs::home_dir().ok_or("无法获取用户主目录".to_string())?;
+    let agent = agent_id.unwrap_or_else(|| s!("main").to_string());
+    Ok(home_dir
+        .join(s!(".openclaw"))
+        .join(s!("agents"))
+        .join(agent)
+        .join(s!("agent"))
+        .join(s!("auth-profiles.json")))
+}
+
+/// 读取 auth-profiles.json
+#[tauri::command]
+pub fn read_auth_profiles(agent_id: Option<String>) -> Result<Value, String> {
+    let path = get_auth_profiles_path(agent_id)?;
+
+    if !path.exists() {
+        return Ok(serde_json::json!({
+            "version": 1,
+            "profiles": {}
+        }));
+    }
+
+    let content = fs::read_to_string(&path)
+        .map_err(|e| format!("读取认证配置失败: {}", e))?;
+
+    let profiles: Value = serde_json::from_str(&content)
+        .map_err(|e| format!("解析认证配置失败: {}", e))?;
+
+    Ok(profiles)
+}
+
+/// 写入 auth-profiles.json（安全写入，自动创建目录和备份）
+#[tauri::command]
+pub fn write_auth_profiles(agent_id: Option<String>, profiles: Value) -> Result<(), String> {
+    let path = get_auth_profiles_path(agent_id)?;
+
+    // 确保目录存在
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("创建认证配置目录失败: {}", e))?;
+    }
+
+    // 备份旧文件
+    if path.exists() {
+        let backup_dir = path.parent()
+            .ok_or("无法获取目录".to_string())?
+            .join("backups");
+        let _ = fs::create_dir_all(&backup_dir);
+        if let Ok(metadata) = fs::metadata(&path) {
+            if metadata.len() > 0 {
+                let timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                let backup_name = format!("auth-profiles-{}.{}", timestamp, s!("json"));
+                let _ = fs::copy(&path, backup_dir.join(backup_name));
+            }
+        }
+    }
+
+    // 格式化写入
+    let json = serde_json::to_string_pretty(&profiles)
+        .map_err(|e| format!("序列化认证配置失败: {}", e))?;
+
+    fs::write(&path, json)
+        .map_err(|e| format!("写入认证配置失败: {}", e))?;
+
+    Ok(())
+}
+
+/// 获取认证状态摘要
+#[tauri::command]
+pub fn get_auth_status(agent_id: Option<String>) -> Result<Value, String> {
+    let profiles = read_auth_profiles(agent_id.clone())?;
+    let profile_map = profiles
+        .get("profiles")
+        .and_then(|p| p.as_object())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut summary: Vec<Value> = Vec::new();
+    for (profile_id, profile_data) in profile_map {
+        let provider = profile_data
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        let auth_type = profile_data
+            .get("type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        let has_key = profile_data.get("key").is_some() || profile_data.get("access").is_some();
+
+        summary.push(serde_json::json!({
+            "profileId": profile_id,
+            "provider": provider,
+            "type": auth_type,
+            "hasKey": has_key
+        }));
+    }
+
+    Ok(serde_json::json!({
+        "count": summary.len(),
+        "profiles": summary
+    }))
+}

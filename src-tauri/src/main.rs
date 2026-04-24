@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs;
-use std::net::{TcpStream, ToSocketAddrs};
+use std::net::TcpStream;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
@@ -51,6 +51,16 @@ struct ProviderInfo {
     models: Vec<ModelInfo>,
 }
 
+/** 模型成本配置 */
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct CostConfig {
+    input: Option<f64>,
+    output: Option<f64>,
+    cache_read: Option<f64>,
+    cache_write: Option<f64>,
+}
+
 /// 返回给前端的模型信息
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -59,6 +69,8 @@ struct ModelInfo {
     name: Option<String>,
     reasoning: bool,
     context_window: Option<u64>,
+    input: Option<Vec<String>>,
+    cost: Option<CostConfig>,
 }
 
 /// 返回给前端的模型选择信息
@@ -323,11 +335,25 @@ fn get_providers(config: Value) -> Result<Vec<ProviderInfo>, String> {
                                     let name = m.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
                                     let reasoning = m.get("reasoning").and_then(|v| v.as_bool()).unwrap_or(false);
                                     let context_window = m.get("contextWindow").and_then(|v| v.as_u64());
+                                    let input = m.get("input")
+                                        .and_then(|v| v.as_array())
+                                        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
+                                    let cost = m.get("cost").and_then(|v| {
+                                        let obj = v.as_object()?;
+                                        Some(CostConfig {
+                                            input: obj.get("input").and_then(|v| v.as_f64()),
+                                            output: obj.get("output").and_then(|v| v.as_f64()),
+                                            cache_read: obj.get("cacheRead").and_then(|v| v.as_f64()),
+                                            cache_write: obj.get("cacheWrite").and_then(|v| v.as_f64()),
+                                        })
+                                    });
                                     Some(ModelInfo {
                                         id,
                                         name,
                                         reasoning,
                                         context_window,
+                                        input,
+                                        cost,
                                     })
                                 })
                                 .collect()
@@ -1036,9 +1062,33 @@ pub(crate) fn restart_gateway() -> Result<String, String> {
     }
 }
 
+/// 从配置文件读取网关端口，优先使用 gateway.port，回退到默认 18789
+fn resolve_gateway_port() -> u16 {
+    let home_dir = match dirs::home_dir() {
+        Some(h) => h,
+        None => return 18789,
+    };
+    let config_path = home_dir.join(s!(".openclaw")).join(s!("openclaw.json"));
+    let raw = match fs::read_to_string(&config_path) {
+        Ok(r) => r,
+        Err(_) => return 18789,
+    };
+    let parsed: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(_) => return 18789,
+    };
+    parsed
+        .get("gateway")
+        .and_then(|g| g.get("port"))
+        .and_then(|p| p.as_u64())
+        .and_then(|p| u16::try_from(p).ok())
+        .unwrap_or(18789)
+}
+
 #[tauri::command]
 pub(crate) fn health_check_gateway() -> Result<bool, String> {
-    let addr = "127.0.0.1:18789";
+    let port = resolve_gateway_port();
+    let addr = format!("127.0.0.1:{}", port);
     let timeout = Duration::from_secs(2);
     match TcpStream::connect_timeout(
         &addr.parse().map_err(|e| format!("无效地址: {}", e))?,
@@ -1230,6 +1280,10 @@ fn main() {
             claw_config::claw_remove_provider,
             claw_config::claw_set_primary_model,
             claw_config::claw_add_fallback_model,
+            // Auth Profiles (OpenClaw 2026.4.x+)
+            claw_config::read_auth_profiles,
+            claw_config::write_auth_profiles,
+            claw_config::get_auth_status,
             // LLM Config
             llm_config::llm_read_config,
             llm_config::llm_write_config,

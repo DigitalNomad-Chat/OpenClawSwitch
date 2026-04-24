@@ -202,19 +202,24 @@ pub fn llm_get_active_config() -> Result<Value, String> {
     }
 }
 
-/// OpenClaw Provider 摘要（速填功能）
+/** OpenClaw Provider 摘要（速填功能）
+ * 注意：OpenClaw 2026.4.x+ 中 apiKey 已分离到 auth-profiles.json，
+ * 此处不再返回 apiKey，仅返回 Provider 元数据和模型列表
+ */
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenClawProviderSummary {
     pub name: String,
     pub base_url: String,
-    pub has_api_key: bool,
-    pub api_key_value: Option<String>,
+    pub api: Option<String>,
     pub model_count: usize,
     pub models: Vec<String>,
 }
 
-/// 发现 OpenClaw 中已配置的 Provider（速填功能）
+/** 发现 OpenClaw 中已配置的 Provider（速填功能）
+ * OpenClaw 2026.4.x+ 适配：apiKey 已分离到 auth-profiles.json，
+ * 此处仅读取 Provider 元数据（baseUrl, api, models）
+ */
 #[tauri::command]
 pub fn llm_discover_openclaw_providers() -> Result<Vec<OpenClawProviderSummary>, String> {
     s! { let openclaw_dir = ".openclaw"; }
@@ -222,10 +227,7 @@ pub fn llm_discover_openclaw_providers() -> Result<Vec<OpenClawProviderSummary>,
     s! { let models_key = "models"; }
     s! { let providers_key = "providers"; }
     s! { let base_url_key = "baseUrl"; }
-    s! { let api_key_key = "apiKey"; }
-    s! { let source_key = "source"; }
-    s! { let literal_val = "literal"; }
-    s! { let value_key = "value"; }
+    s! { let api_key = "api"; }
     s! { let id_key = "id"; }
 
     let home_dir = dirs::home_dir().ok_or(s!("无法获取用户主目录").to_string())?;
@@ -253,30 +255,11 @@ pub fn llm_discover_openclaw_providers() -> Result<Vec<OpenClawProviderSummary>,
                     .unwrap_or("")
                     .to_string();
 
-                // 解析 apiKey
-                let (has_api_key, api_key_value) = match provider_val.get(api_key_key) {
-                    None => (false, None),
-                    Some(key_val) => {
-                        if let Some(s) = key_val.as_str() {
-                            // 纯字符串 apiKey
-                            let has = !s.is_empty();
-                            (has, if has { Some(s.to_string()) } else { None })
-                        } else if let Some(obj) = key_val.as_object() {
-                            // 对象形式 apiKey
-                            let has = !obj.is_empty();
-                            let value = obj
-                                .get(source_key)
-                                .and_then(|s| s.as_str())
-                                .filter(|s| *s == literal_val)
-                                .and_then(|_| obj.get(value_key))
-                                .and_then(|v| v.as_str())
-                                .map(|s| s.to_string());
-                            (has, value)
-                        } else {
-                            (false, None)
-                        }
-                    }
-                };
+                // 读取 api 字段（OpenClaw 2026.4.x+ 新增）
+                let api = provider_val
+                    .get(api_key)
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
 
                 // 提取模型列表
                 let mut models_list = Vec::new();
@@ -293,8 +276,7 @@ pub fn llm_discover_openclaw_providers() -> Result<Vec<OpenClawProviderSummary>,
                 summaries.push(OpenClawProviderSummary {
                     name: name.clone(),
                     base_url,
-                    has_api_key,
-                    api_key_value,
+                    api,
                     model_count,
                     models: models_list,
                 });

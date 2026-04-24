@@ -195,7 +195,7 @@ const MANAGED_NODE_VERSION: &str = "22.22.0";
 // ============================================================================
 
 /// Clawlite 已验证兼容的 OpenClaw 版本（安装时锁定此版本）
-pub const OPENCLAW_PINNED_VERSION: &str = "2026.3.8";
+pub const OPENCLAW_PINNED_VERSION: &str = "2026.4.22";
 
 /// OpenClaw 最低兼容版本（检测到低于此版本时警告用户）
 const OPENCLAW_MIN_VERSION: &str = "2026.3.1";
@@ -205,9 +205,11 @@ const OPENCLAW_MIN_VERSION: &str = "2026.3.1";
 /// - v2: 2026.3.1 ~ 2026.3.21 的配置格式（14 模块完整版）
 /// - v3: 2026.3.22+ 配置格式（插件系统重构、遗留清理后）
 /// - v4: 2026.4.0+ 配置格式（配置规范化）
+/// - v5: 2026.4.10+ 配置格式（飞书通道结构重构：appId/appSecret、connectionMode、domain 等）
 const OPENCLAW_CONFIG_SCHEMA_V2: &str = "2026.3.1";
 const OPENCLAW_CONFIG_SCHEMA_V3: &str = "2026.3.22";
 const OPENCLAW_CONFIG_SCHEMA_V4: &str = "2026.4.0";
+const OPENCLAW_CONFIG_SCHEMA_V5: &str = "2026.4.10";
 
 /// 从 `openclaw --version` 的原始输出中提取日期版本号
 /// 输入示例: "OpenClaw 2026.3.8 (3caab92)" → 输出: Some("2026.3.8")
@@ -272,6 +274,7 @@ pub fn compare_versions(a: &str, b: &str) -> i32 {
 /// 根据已安装的 OpenClaw 版本判断配置 Schema 版本
 pub fn detect_config_schema_version(version: &str) -> u32 {
     match extract_date_version(version) {
+        Some(v) if compare_versions(&v, OPENCLAW_CONFIG_SCHEMA_V5) >= 0 => 5,
         Some(v) if compare_versions(&v, OPENCLAW_CONFIG_SCHEMA_V4) >= 0 => 4,
         Some(v) if compare_versions(&v, OPENCLAW_CONFIG_SCHEMA_V3) >= 0 => 3,
         Some(v) if compare_versions(&v, OPENCLAW_CONFIG_SCHEMA_V2) >= 0 => 2,
@@ -3027,10 +3030,11 @@ pub async fn generate_default_config(app: AppHandle) -> Result<String, String> {
 }
 
 fn build_default_openclaw_config(token: &str) -> serde_json::Value {
+    // 对齐 OpenClaw 2026.4.x 最小配置格式
+    // 不硬编码 port，让 OpenClaw 使用默认端口
     serde_json::json!({
         "gateway": {
             "mode": "local",
-            "port": 18789,
             "bind": "loopback",
             "auth": {
                 "mode": "token",
