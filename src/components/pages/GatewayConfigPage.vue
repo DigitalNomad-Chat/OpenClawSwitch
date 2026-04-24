@@ -6,8 +6,9 @@ import Input from '@/components/ui/Input.vue'
 import Badge from '@/components/ui/Badge.vue'
 import StyledSelect from '@/components/ui/StyledSelect.vue'
 import HelpTooltip from '@/components/ui/HelpTooltip.vue'
-import { useGatewayConfig } from '@/composables/useGatewayConfig'
-import type { GatewayConfig, AuthConfig } from '@/types/config'
+import { useWorkspaceConfig } from '@/composables/useWorkspaceConfig'
+import { useWorkspaceStore } from '@/composables/useWorkspaceStore'
+import type { GatewayConfig, AuthConfig, OpenClawConfig } from '@/types/config'
 import { createTagHandlers } from '@/composables/tagHandlers'
 
 // ============================================================================
@@ -16,15 +17,15 @@ import { createTagHandlers } from '@/composables/tagHandlers'
 
 const props = defineProps<{
   showToast: (type: 'success' | 'error', message: string) => void
-  envMode: string
-  envSshConnected: boolean
 }>()
+
+const workspaceStore = useWorkspaceStore()
 
 // ============================================================================
 // Composables
 // ============================================================================
 
-const { loading, saving, error, configSource, loadConfig, saveConfig } = useGatewayConfig()
+const { loading, saving, error, configSource, loadConfig, saveConfig } = useWorkspaceConfig()
 
 // ============================================================================
 // 响应式表单状态
@@ -183,14 +184,21 @@ function removeAuthProfile(id: string) {
 // ============================================================================
 
 async function handleRefresh() {
-  await loadConfig(props.envMode, props.envSshConnected)
+  await loadConfig()
   syncFormFromConfig()
   props.showToast('success', '已刷新')
 }
 
 async function handleSave() {
   try {
-    await saveConfig(buildGatewayConfig(), buildAuthConfig())
+    if (!configSource.value) throw new Error('未加载配置')
+    const auth = buildAuthConfig()
+    const updated: OpenClawConfig = {
+      ...configSource.value.config,
+      gateway: buildGatewayConfig(),
+      ...(auth ? { auth } : {}),
+    }
+    await saveConfig(updated)
     isDirty.value = false
     props.showToast('success', '配置已保存')
   } catch (err) {
@@ -205,7 +213,7 @@ async function handleSave() {
 
 onMounted(async () => {
   try {
-    await loadConfig(props.envMode, props.envSshConnected)
+    await loadConfig()
     syncFormFromConfig()
   } catch (err) {
     console.error('加载配置失败:', err)
@@ -213,9 +221,9 @@ onMounted(async () => {
 })
 
 watch(
-  () => [props.envMode, props.envSshConnected],
+  () => workspaceStore.activeWorkspaceId.value,
   async () => {
-    await loadConfig(props.envMode, props.envSshConnected)
+    await loadConfig()
     syncFormFromConfig()
   }
 )

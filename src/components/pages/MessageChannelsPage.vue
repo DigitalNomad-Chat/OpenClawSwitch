@@ -75,6 +75,7 @@ import {
   resolveGatewayRestartCommand,
 } from '../../domain/gatewayRestart'
 import type { ConfigFileInfo, InstallLogEvent, OpenClawConfig } from '../../types/config'
+import { useWorkspaceConfig } from '../../composables/useWorkspaceConfig'
 
 type ChannelId =
   | 'wecom'
@@ -237,6 +238,8 @@ const props = withDefaults(
   }>(),
   {}
 )
+
+const workspaceConfig = useWorkspaceConfig()
 
 const channelList: ChannelMeta[] = sortMessageChannelsForDisplay([
   { id: 'feishu', name: '飞书', icon: MessageCircle, iconColor: 'var(--oc-accent)' },
@@ -1283,7 +1286,13 @@ const addFeishuGroup = () => {
   showFeishuGroupAdd.value = false
 }
 
-const loadLocalConfig = async () => invoke<[OpenClawConfig, ConfigFileInfo]>('load_default_config')
+const loadLocalConfig = async (): Promise<[OpenClawConfig, ConfigFileInfo]> => {
+  await workspaceConfig.loadConfig()
+  if (!workspaceConfig.configSource.value) {
+    throw new Error(workspaceConfig.error.value || '加载配置失败')
+  }
+  return [workspaceConfig.configSource.value.config, workspaceConfig.configSource.value.fileInfo]
+}
 
 const applyTelegramConfig = (mutable: JsonRecord, form: ChannelForm) => {
   setPathValue(mutable, ['channels', 'telegram', 'enabled'], form.enabled)
@@ -2014,13 +2023,13 @@ const syncChannelsFromConfig = async () => {
 }
 
 const persistConfigMutation = async (mutator: (mutable: JsonRecord) => void) => {
-  const [config, info] = await loadLocalConfig()
-  const mutable = config as JsonRecord
+  await workspaceConfig.loadConfig()
+  if (!workspaceConfig.configSource.value) {
+    throw new Error(workspaceConfig.error.value || '加载配置失败')
+  }
+  const mutable = workspaceConfig.configSource.value.config as JsonRecord
   mutator(mutable)
-  await invoke('save_config', {
-    config: mutable,
-    path: info.path
-  })
+  await workspaceConfig.saveConfig(mutable as OpenClawConfig)
 }
 
 const persistChannelEnabled = async (channelId: ChannelId, enabled: boolean) => {
@@ -2086,7 +2095,7 @@ const scheduleGatewayRestartAfterChannelEnable = (channelName: string) => {
 
   gatewayRestartController.schedule(async () => {
     try {
-      await invoke<string>('restart_gateway')
+      await workspaceConfig.restartGateway()
       props.showToast('success', `已为 ${channelName} 发送网关重启命令：${restartCommand}`)
     } catch (error) {
       props.showToast('error', `网关重启失败：${String(error)}`)

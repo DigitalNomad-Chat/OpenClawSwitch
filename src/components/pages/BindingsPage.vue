@@ -32,6 +32,7 @@ import type {
   RoutingMode,
   AccountOption
 } from '../../types/config'
+import { useWorkspaceConfig } from '../../composables/useWorkspaceConfig'
 
 // ============================================================================
 // 类型定义
@@ -50,9 +51,9 @@ interface UnboundAgent {
 
 const props = defineProps<{
   showToast: (type: 'success' | 'error', message: string) => void
-  envMode?: 'local' | 'ssh'
-  envSshConnected?: boolean
 }>()
+
+const workspaceConfig = useWorkspaceConfig()
 
 // ============================================================================
 // 状态管理
@@ -316,19 +317,19 @@ const loadAgentOptions = async () => {
 const loadDefaultConfig = async () => {
   loading.value = true
   try {
-    const [config, info] = await invoke<[OpenClawConfig, ConfigFileInfo]>('load_default_config')
-    currentConfig.value = config
-    fileInfo.value = info
-
-    await Promise.all([
-      loadBindings(),
-      loadAgentOptions()
-    ])
-
-    props.showToast('success', `已加载: ${info.fileName}`)
-  } catch (error) {
-    console.error('加载配置失败:', error)
-    props.showToast('error', `${error}`)
+    await workspaceConfig.loadConfig()
+    if (workspaceConfig.configSource.value) {
+      currentConfig.value = workspaceConfig.configSource.value.config
+      fileInfo.value = workspaceConfig.configSource.value.fileInfo
+      await Promise.all([
+        loadBindings(),
+        loadAgentOptions()
+      ])
+      props.showToast('success', `已加载: ${fileInfo.value.fileName}`)
+    } else if (workspaceConfig.error.value) {
+      console.error('加载配置失败:', workspaceConfig.error.value)
+      props.showToast('error', workspaceConfig.error.value)
+    }
   } finally {
     loading.value = false
   }
@@ -516,15 +517,7 @@ const deleteBinding = async (binding: BindingInfo) => {
 
 const saveConfig = async () => {
   if (!currentConfig.value || !fileInfo.value) return
-
-  try {
-    await invoke('save_config', {
-      config: currentConfig.value,
-      path: fileInfo.value.path
-    })
-  } catch (error) {
-    throw error
-  }
+  await workspaceConfig.saveConfig(currentConfig.value)
 }
 
 // ============================================================================
@@ -533,10 +526,7 @@ const saveConfig = async () => {
 
 const checkGatewayHealth = async (): Promise<boolean> => {
   try {
-    if (isLocalMode.value) {
-      return await invoke<boolean>('health_check_gateway')
-    }
-    return await invoke<boolean>('ssh_health_check')
+    return await workspaceConfig.healthCheck()
   } catch {
     return false
   }
@@ -545,11 +535,7 @@ const checkGatewayHealth = async (): Promise<boolean> => {
 const doRestartGateway = async () => {
   restartLoading.value = true
   try {
-    if (isLocalMode.value) {
-      await invoke('restart_gateway')
-    } else {
-      await invoke('ssh_restart_gateway')
-    }
+    await workspaceConfig.restartGateway()
     const ready = await waitForGatewayReady(checkGatewayHealth, DEFAULT_GATEWAY_READY_OPTIONS)
     if (!ready) {
       throw new Error('重启命令已发送，但网关在预期时间内未恢复可访问')

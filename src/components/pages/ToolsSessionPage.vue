@@ -7,10 +7,11 @@ import Input from '@/components/ui/Input.vue'
 import Badge from '@/components/ui/Badge.vue'
 import StyledSelect from '@/components/ui/StyledSelect.vue'
 import HelpTooltip from '@/components/ui/HelpTooltip.vue'
-import { useToolsSessionConfig } from '@/composables/useToolsSessionConfig'
+import { useWorkspaceConfig } from '@/composables/useWorkspaceConfig'
+import { useWorkspaceStore } from '@/composables/useWorkspaceStore'
 import { useAgents } from '@/composables/useAgents'
 import { createTagHandlers, type TagHandlers } from '@/composables/tagHandlers'
-import type { ToolsConfig, SessionConfig, AgentItem, HooksConfig } from '@/types/config'
+import type { ToolsConfig, SessionConfig, AgentItem, HooksConfig, OpenClawConfig } from '@/types/config'
 import type { SkillsBySource, InstalledSkillInfo } from '@/types/preset'
 
 // ============================================================================
@@ -19,15 +20,15 @@ import type { SkillsBySource, InstalledSkillInfo } from '@/types/preset'
 
 const props = defineProps<{
   showToast: (type: 'success' | 'error', message: string) => void
-  envMode: string
-  envSshConnected: boolean
 }>()
+
+const workspaceStore = useWorkspaceStore()
 
 // ============================================================================
 // Composables
 // ============================================================================
 
-const { loading, saving, error, configSource, loadConfig, saveConfig } = useToolsSessionConfig()
+const { loading, saving, error, configSource, loadConfig, saveConfig } = useWorkspaceConfig()
 const { agents, loadAgents } = useAgents()
 
 /** Agent ID → 名称映射，用于 UI 显示 */
@@ -373,7 +374,7 @@ function buildHooksConfig(): HooksConfig {
 // ============================================================================
 
 async function handleRefresh() {
-  await loadConfig(props.envMode, props.envSshConnected)
+  await loadConfig()
   syncFormFromConfig()
   loadAgents()
   props.showToast('success', '已刷新')
@@ -381,8 +382,12 @@ async function handleRefresh() {
 
 async function handleSave() {
   try {
-    await saveConfig(buildToolsConfig(), buildSessionConfig(), {
-      agents: agentList.value,
+    if (!configSource.value) throw new Error('未加载配置')
+    const updated: OpenClawConfig = {
+      ...configSource.value.config,
+      tools: buildToolsConfig(),
+      session: buildSessionConfig(),
+      agents: { ...configSource.value.config.agents, list: agentList.value },
       hooks: buildHooksConfig(),
       skills: { install: { nodeManager: nodeManager.value } },
       messages: {
@@ -393,7 +398,8 @@ async function handleSave() {
         restart: commandsRestart.value,
         ownerDisplay: commandsOwnerDisplay.value,
       },
-    })
+    }
+    await saveConfig(updated)
     isDirty.value = false
     props.showToast('success', '配置已保存')
   } catch (err) {
@@ -507,7 +513,7 @@ async function loadInstalledSkills() {
 
 onMounted(async () => {
   try {
-    await loadConfig(props.envMode, props.envSshConnected)
+    await loadConfig()
     syncFormFromConfig()
   } catch (err) {
     console.error('加载配置失败:', err)
@@ -516,11 +522,11 @@ onMounted(async () => {
   loadInstalledSkills()
 })
 
-// 监听 props 变化，环境切换时重新加载
+// 监听 Workspace 变化，切换时重新加载
 watch(
-  () => [props.envMode, props.envSshConnected],
+  () => workspaceStore.activeWorkspaceId.value,
   async () => {
-    await loadConfig(props.envMode, props.envSshConnected)
+    await loadConfig()
     syncFormFromConfig()
   }
 )

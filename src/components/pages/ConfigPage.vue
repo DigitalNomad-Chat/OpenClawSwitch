@@ -7,11 +7,9 @@ import Input from '../ui/Input.vue'
 import Label from '../ui/Label.vue'
 import Card from '../ui/Card.vue'
 import ProviderCard from '../ProviderCard.vue'
-import RemoteFileBrowser from '../RemoteFileBrowser.vue'
-import SshSaveConfirmModal from '../SshSaveConfirmModal.vue'
 import {
   Server, Settings, ListTree, Save, Download, Plus, X, ChevronDown, FolderOpen, FileCode,
-  RefreshCw, Terminal, Wrench, Hammer, Monitor, Bot, Check, Info, ChevronRight,
+  RefreshCw, Terminal, Wrench, Hammer, Bot, Check, Info, ChevronRight,
   Zap, Trash2, Clipboard
 } from 'lucide-vue-next'
 import type {
@@ -19,7 +17,7 @@ import type {
 } from '../../types/config'
 import { isPrimaryModelPlaceholder } from '../../domain/configValidation'
 import { CONFIG_PAGE_DESCRIPTION, resolveConfigPagePrimaryActionState } from '../../domain/configPageToolbar'
-import { buildJsonDiffSummary, type JsonDiffSummary } from '../../domain/jsonDiff'
+import { useWorkspaceConfig } from '../../composables/useWorkspaceConfig'
 
 // ============================================================================
 // Props & Events
@@ -27,9 +25,9 @@ import { buildJsonDiffSummary, type JsonDiffSummary } from '../../domain/jsonDif
 
 const props = defineProps<{
   showToast: (type: 'success' | 'error', message: string) => void
-  envMode?: 'local' | 'ssh'
-  envSshConnected?: boolean
 }>()
+
+const workspaceConfig = useWorkspaceConfig()
 
 // ============================================================================
 // 状态管理
@@ -48,14 +46,6 @@ const thinkingDefault = ref<'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhi
 
 // UI 状态
 const loading = ref(false)
-
-// SSH 状态
-const showFileBrowser = ref(false)
-const sshConnected = ref(false)
-const sshRemotePath = ref('')
-const showSshSaveConfirm = ref(false)
-const sshDiffSummary = ref<JsonDiffSummary | null>(null)
-let sshSaveConfirmResolver: ((confirmed: boolean) => void) | null = null
 
 // 弹窗状态
 const showProviderModal = ref(false)
@@ -144,9 +134,6 @@ const primaryActionState = computed(() =>
   })
 )
 
-// 外部 SSH 模式：由 App.vue 管理连接，ConfigPage 直接复用
-const isExternalSsh = computed(() => props.envMode === 'ssh' && props.envSshConnected)
-
 // ============================================================================
 // 文件操作
 // ============================================================================
@@ -154,15 +141,17 @@ const isExternalSsh = computed(() => props.envMode === 'ssh' && props.envSshConn
 const loadDefaultConfig = async () => {
   loading.value = true
   try {
-    const [config, info] = await invoke<[OpenClawConfig, ConfigFileInfo]>('load_default_config')
-    currentConfig.value = config
-    fileInfo.value = info
-    isDirty.value = false
-    await refreshProviders()
-    props.showToast('success', `已加载: ${info.fileName}`)
-  } catch (error) {
-    console.error('加载默认配置失败:', error)
-    props.showToast('error', `${error}`)
+    await workspaceConfig.loadConfig()
+    if (workspaceConfig.configSource.value) {
+      currentConfig.value = workspaceConfig.configSource.value.config
+      fileInfo.value = workspaceConfig.configSource.value.fileInfo
+      isDirty.value = false
+      await refreshProviders()
+      props.showToast('success', `已加载: ${fileInfo.value.fileName}`)
+    } else if (workspaceConfig.error.value) {
+      console.error('加载配置失败:', workspaceConfig.error.value)
+      props.showToast('error', workspaceConfig.error.value)
+    }
   } finally {
     loading.value = false
   }
@@ -221,16 +210,9 @@ const saveConfig = async (throwOnError = false) => {
     }
     return
   }
-  if (isSshMode.value) {
-    await saveSshConfig(throwOnError)
-    return
-  }
   loading.value = true
   try {
-    await invoke('save_config', {
-      config: currentConfig.value,
-      path: fileInfo.value.path
-    })
+    await workspaceConfig.saveConfig(currentConfig.value)
     isDirty.value = false
     lastSaveTime.value = new Date().toLocaleString('zh-CN', { hour12: false })
     props.showToast('success', '已保存')
@@ -884,7 +866,7 @@ const handleClickOutside = (event: MouseEvent) => {
 const restartGateway = async () => {
   toolLoading.value = 'restart'
   try {
-    const result = await invoke<string>('restart_gateway')
+    const result = await workspaceConfig.restartGateway()
     props.showToast('success', result || '网关重启成功')
   } catch (error) {
     props.showToast('error', `重启失败: ${error}`)
@@ -921,98 +903,6 @@ const fixMinimaxDomestic = async () => {
   }
 }
 
-const loadRemoteConfig = async (remotePath: string) => {
-  showFileBrowser.value = false
-  loading.value = true
-  try {
-    console.log('[ConfigPage] 加载远程配置:', remotePath)
-    const content = await invoke<string>('ssh_read_file', { path: remotePath })
-    console.log('[ConfigPage] 远程文件读取成功，长度:', content.length)
-    const config: OpenClawConfig = JSON.parse(content)
-    currentConfig.value = config
-    sshRemotePath.value = remotePath
-
-    const fileName = remotePath.split('/').pop() || 'openclaw.json'
-    const dirPath = remotePath.substring(0, remotePath.lastIndexOf('/'))
-    fileInfo.value = {
-      path: remotePath,
-      mode: 'ssh',
-      fileName,
-      dirPath,
-    }
-    isDirty.value = false
-    await refreshProviders()
-    props.showToast('success', `已加载远程配置: ${fileName}`)
-  } catch (e) {
-    console.error('[ConfigPage] 加载远程配置失败:', e)
-    props.showToast('error', `加载远程配置失败: ${e}`)
-  } finally {
-    loading.value = false
-  }
-}
-
-const saveSshConfig = async (throwOnError = false) => {
-  if (!currentConfig.value || !sshRemotePath.value) return
-  const json = JSON.stringify(currentConfig.value, null, 2)
-
-  try {
-    let previousRaw = '{}'
-    try {
-      previousRaw = await invoke<string>('ssh_read_file', { path: sshRemotePath.value })
-    } catch {
-      previousRaw = '{}'
-    }
-
-    const oldObj = JSON.parse(previousRaw)
-    const newObj = JSON.parse(json)
-    sshDiffSummary.value = buildJsonDiffSummary(oldObj, newObj)
-  } catch {
-    sshDiffSummary.value = buildJsonDiffSummary({}, currentConfig.value)
-  }
-
-  showSshSaveConfirm.value = true
-  const confirmed = await new Promise<boolean>((resolve) => {
-    sshSaveConfirmResolver = resolve
-  })
-
-  if (!confirmed) {
-    if (throwOnError) {
-      throw new Error('ssh_save_cancelled')
-    }
-    return
-  }
-
-  loading.value = true
-  try {
-    await invoke('ssh_write_file', {
-      path: sshRemotePath.value,
-      content: json,
-    })
-    isDirty.value = false
-    lastSaveTime.value = new Date().toLocaleString('zh-CN', { hour12: false })
-    props.showToast('success', '已保存到远程服务器')
-  } catch (e) {
-    props.showToast('error', `远程保存失败: ${e}`)
-    if (throwOnError) {
-      throw e instanceof Error ? e : new Error(String(e))
-    }
-  } finally {
-    loading.value = false
-  }
-}
-
-const confirmSshSave = () => {
-  showSshSaveConfirm.value = false
-  sshSaveConfirmResolver?.(true)
-  sshSaveConfirmResolver = null
-}
-
-const cancelSshSave = () => {
-  showSshSaveConfirm.value = false
-  sshSaveConfirmResolver?.(false)
-  sshSaveConfirmResolver = null
-}
-
 const chineseProviderPresets: ProviderPreset[] = [
   { name: 'deepseek', displayName: 'DeepSeek', baseUrl: 'https://api.deepseek.com' },
   { name: 'nvidia', displayName: '英伟达', baseUrl: 'https://integrate.api.nvidia.com/v1' },
@@ -1032,13 +922,7 @@ const fillPreset = (preset: ProviderPreset) => {
 onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
   await loadQuickModels()
-  if (isExternalSsh.value) {
-    // SSH 模式：复用已有连接，自动搜索远程配置
-    sshConnected.value = true
-    await loadRemoteDefaultConfig()
-  } else {
-    await loadDefaultConfig()
-  }
+  await loadDefaultConfig()
 })
 
 onUnmounted(() => {
@@ -1051,27 +935,6 @@ watch(activeTab, async (tab) => {
     await loadAgentList()
   }
 })
-
-// SSH 模式下自动搜索并加载远程默认配置
-const loadRemoteDefaultConfig = async () => {
-  loading.value = true
-  try {
-    console.log('[ConfigPage] 搜索远程配置文件...')
-    const results = await invoke<{ path: string; fileName: string; dirPath: string }[]>('ssh_search_config')
-    console.log('[ConfigPage] 搜索结果:', results)
-    if (results.length > 0) {
-      console.log('[ConfigPage] 加载第一个配置:', results[0].path)
-      await loadRemoteConfig(results[0].path)
-    } else {
-      props.showToast('error', '远程服务器未找到 OpenClaw 配置文件')
-    }
-  } catch (e) {
-    console.error('[ConfigPage] 搜索远程配置失败:', e)
-    props.showToast('error', `搜索远程配置失败: ${e}`)
-  } finally {
-    loading.value = false
-  }
-}
 </script>
 
 <template>
@@ -1084,11 +947,6 @@ const loadRemoteDefaultConfig = async () => {
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-              <!-- SSH 连接由 App 全局入口统一管理，这里仅复用已建立连接 -->
-              <Button v-if="isExternalSsh" variant="outline" size="sm" @click="showFileBrowser = true" :disabled="loading">
-                <Monitor class="w-4 h-4 text-green-600" />
-                浏览远程
-              </Button>
               <Button variant="outline" size="sm" @click="selectFile" :disabled="loading">
                 <Settings class="w-4 h-4" />
                 选择文件
@@ -1658,15 +1516,6 @@ const loadRemoteDefaultConfig = async () => {
       </Card>
     </div>
 
-    <SshSaveConfirmModal
-      v-if="showSshSaveConfirm && sshDiffSummary && sshRemotePath"
-      :target-path="sshRemotePath"
-      :summary="sshDiffSummary"
-      @confirm="confirmSshSave"
-      @cancel="cancelSshSave"
-    />
-
-    <RemoteFileBrowser v-if="showFileBrowser" @close="showFileBrowser = false" @select="loadRemoteConfig" />
   </div>
 </template>
 
