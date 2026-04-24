@@ -38,6 +38,14 @@ const formatContextWindow = (value?: number): string => {
   return value.toString()
 }
 
+const formatCost = (cost?: { input?: number; output?: number }): string => {
+  if (!cost) return ''
+  const parts: string[] = []
+  if (cost.input !== undefined) parts.push(`in ${cost.input}`)
+  if (cost.output !== undefined) parts.push(`out ${cost.output}`)
+  return parts.join(' / ')
+}
+
 const handleSetPrimary = (model?: ModelInfo) => {
   const modelId = model?.id || 'default'
   emit('setPrimary', `${props.provider.name}/${modelId}`)
@@ -122,6 +130,9 @@ const handleCopySwitch = async (model?: ModelInfo) => {
                   <Brain v-if="model.reasoning" class="w-3 h-3 flex-shrink-0" style="color: var(--oc-accent);" />
                   <span v-if="model.contextWindow" class="flex flex-shrink-0 items-center gap-0.5" style="color: var(--oc-text-muted);">
                     <Zap class="w-2.5 h-2.5" />{{ formatContextWindow(model.contextWindow) }}
+                  </span>
+                  <span v-if="model.cost" class="flex flex-shrink-0 items-center gap-0.5 text-[10px]" style="color: var(--oc-text-muted);">
+                    {{ formatCost(model.cost) }}
                   </span>
                 </div>
                 <div class="truncate" style="color: var(--oc-text-muted);">{{ model.id }}</div>
