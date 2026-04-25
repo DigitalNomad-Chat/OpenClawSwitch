@@ -1047,7 +1047,21 @@ pub(crate) fn restart_gateway() -> Result<String, String> {
         Ok("Gateway restart initiated".to_string())
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        // macOS: 使用 zsh -l 确保加载用户 profile，获得完整 PATH（node 等）
+        let output = std::process::Command::new("zsh")
+            .args(["-l", "-c", "openclaw gateway restart"])
+            .output()
+            .map_err(|e| format!("执行命令失败: {}", e))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("网关重启失败: {}", stderr));
+        }
+        Ok("Gateway restart initiated".to_string())
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         let output = std::process::Command::new("sh")
             .arg("-c")

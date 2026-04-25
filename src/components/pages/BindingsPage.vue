@@ -30,7 +30,8 @@ import type {
   BindingRequest,
   ConfigFileInfo,
   RoutingMode,
-  AccountOption
+  AccountOption,
+  BindingType
 } from '../../types/config'
 import { useWorkspaceConfig } from '../../composables/useWorkspaceConfig'
 
@@ -89,6 +90,12 @@ const routingModeOptions: { value: RoutingMode; label: string; description: stri
   { value: 'both', label: 'Both', description: '同时支持两种方式' }
 ]
 
+// 绑定类型选项
+const bindingTypeOptions: { value: BindingType; label: string; description: string }[] = [
+  { value: 'route', label: '路由绑定', description: '标准消息路由（默认）' },
+  { value: 'acp', label: 'ACP 远程', description: '远程 Agent 协议绑定' }
+]
+
 // UI 状态
 const loading = ref(false)
 const showAddModal = ref(false)
@@ -107,7 +114,11 @@ const formData = ref<BindingRequest>({
   routingMode: 'peer',
   accountId: '',
   peerKind: 'dm',
-  peerId: ''
+  peerId: '',
+  comment: '',
+  bindingType: 'route',
+  discord: undefined,
+  acp: undefined
 })
 
 // 下拉菜单状态
@@ -116,6 +127,7 @@ const showChannelDropdown = ref(false)
 const showPeerKindDropdown = ref(false)
 const showRoutingModeDropdown = ref(false)
 const showAccountDropdown = ref(false)
+const showBindingTypeDropdown = ref(false)
 
 // 账号选项
 const accountOptions = ref<AccountOption[]>([])
@@ -146,7 +158,7 @@ const totalBindings = computed(() => bindings.value.length)
 const totalChannels = computed(() => Object.keys(bindingsByChannel.value).length)
 
 // 未绑定的 Agents
-const unboundAgents = computed<UnboundAgent[]>(() => {
+const unboundAgents = computed(() => {
   if (!currentConfig.value?.agents?.list) return []
 
   // 获取已绑定的 Agent ID 集合
@@ -157,7 +169,7 @@ const unboundAgents = computed<UnboundAgent[]>(() => {
     .filter(agent => !boundAgentIds.has(agent.id))
     .map(agent => ({
       id: agent.id,
-      name: agent.name,
+      name: agent.name || agent.id,
       workspace: agent.workspace
     }))
 })
@@ -214,6 +226,24 @@ const showPeerFields = computed(() => {
 const showAccountFields = computed(() => {
   const mode = formData.value.routingMode
   return mode === 'accountId' || mode === 'both'
+})
+
+// 是否为 Discord 渠道
+const isDiscordChannel = computed(() => formData.value.channel === 'discord')
+
+// 是否为 ACP 绑定类型
+const isAcpBindingType = computed(() => formData.value.bindingType === 'acp')
+
+// 选中的绑定类型标签
+const selectedBindingTypeLabel = computed(() => {
+  const option = bindingTypeOptions.find(o => o.value === formData.value.bindingType)
+  return option?.label || '路由绑定'
+})
+
+// 选中的绑定类型描述
+const selectedBindingTypeDescription = computed(() => {
+  const option = bindingTypeOptions.find(o => o.value === formData.value.bindingType)
+  return option?.description || ''
 })
 
 // 加载账号选项（直接从配置中读取，零延迟）
@@ -346,7 +376,11 @@ const openAddModal = () => {
     routingMode: 'peer',
     accountId: '',
     peerKind: 'dm',
-    peerId: ''
+    peerId: '',
+    comment: '',
+    bindingType: 'route',
+    discord: undefined,
+    acp: undefined
   }
   accountOptions.value = []
   showAddModal.value = true
@@ -360,7 +394,11 @@ const closeAddModal = () => {
     routingMode: 'peer',
     accountId: '',
     peerKind: 'dm',
-    peerId: ''
+    peerId: '',
+    comment: '',
+    bindingType: 'route',
+    discord: undefined,
+    acp: undefined
   }
   accountOptions.value = []
 }
@@ -375,7 +413,11 @@ const openEditModal = (binding: BindingInfo) => {
     routingMode: mode,
     accountId: (binding as any).accountId || '',
     peerKind: binding.peerKind,
-    peerId: binding.peerId
+    peerId: binding.peerId,
+    comment: binding.comment || '',
+    bindingType: binding.bindingType || 'route',
+    discord: binding.discord ? { ...binding.discord } : undefined,
+    acp: binding.acp ? { ...binding.acp } : undefined
   }
   // 如果有账号模式，加载账号选项
   if ((mode === 'accountId' || mode === 'both') && binding.channel) {
@@ -393,7 +435,11 @@ const closeEditModal = () => {
     routingMode: 'peer',
     accountId: '',
     peerKind: 'dm',
-    peerId: ''
+    peerId: '',
+    comment: '',
+    bindingType: 'route',
+    discord: undefined,
+    acp: undefined
   }
   accountOptions.value = []
 }
@@ -588,6 +634,7 @@ const getBindingIcon = (binding: BindingInfo) => {
 
 /** 获取绑定的类型标签文字 */
 const getBindingModeLabel = (binding: BindingInfo): string => {
+  if (binding.bindingType === 'acp') return 'ACP'
   const mode = getBindingMode(binding)
   if (mode === 'accountId') return 'Account'
   if (mode === 'both') return `${getPeerKindLabel(binding.peerKind)} + Account`
@@ -643,7 +690,11 @@ const quickBindAgent = (agent: UnboundAgent) => {
     routingMode: 'peer',
     accountId: '',
     peerKind: 'group',
-    peerId: ''
+    peerId: '',
+    comment: '',
+    bindingType: 'route',
+    discord: undefined,
+    acp: undefined
   }
   accountOptions.value = []
   showAddModal.value = true
@@ -664,7 +715,7 @@ const dismissWarning = () => {
 const isBindingActive = (binding: BindingInfo): boolean => {
   const mode = getBindingMode(binding)
   if (mode === 'accountId') return !!(binding as any).accountId
-  if (mode === 'both') return !!(binding as any).accountId || (binding.peerId && binding.peerId.length > 0)
+  if (mode === 'both') return !!(binding as any).accountId || !!(binding.peerId && binding.peerId.length > 0)
   return !!(binding.peerId && binding.peerId.length > 0)
 }
 
@@ -873,6 +924,26 @@ onMounted(async () => {
               <code class="peer-id-display">
                 {{ getBindingDisplayId(binding) }}
               </code>
+              <!-- Discord 扩展信息 -->
+              <div v-if="binding.discord" class="binding-meta-tags">
+                <span v-if="binding.discord.guildId" class="meta-tag meta-tag--discord">
+                  Guild: {{ binding.discord.guildId }}
+                </span>
+                <span v-if="binding.discord.teamId" class="meta-tag meta-tag--discord">
+                  Team: {{ binding.discord.teamId }}
+                </span>
+                <span v-if="binding.discord.roles?.length" class="meta-tag meta-tag--discord">
+                  Roles: {{ binding.discord.roles.join(', ') }}
+                </span>
+              </div>
+              <!-- ACP 扩展信息 -->
+              <div v-if="binding.acp" class="binding-meta-tags">
+                <span class="meta-tag meta-tag--acp">
+                  ACP: {{ binding.acp.endpoint }}
+                </span>
+              </div>
+              <!-- 备注 -->
+              <p v-if="binding.comment" class="binding-comment">{{ binding.comment }}</p>
             </div>
           </div>
         </Card>
@@ -881,10 +952,10 @@ onMounted(async () => {
 
     <!-- 添加绑定弹窗 -->
     <div v-if="showAddModal" class="oc-modal-overlay" @click.self="closeAddModal">
-      <Card class="oc-modal-card w-full max-w-md p-6">
-        <h3 style="font-weight: var(--font-weight-semibold); font-size: var(--text-lg); color: var(--oc-text-primary); margin-bottom: var(--spacing-4);">添加绑定</h3>
+      <Card class="oc-modal-card w-full max-w-md p-6 flex flex-col" style="max-height: 85vh;">
+        <h3 style="font-weight: var(--font-weight-semibold); font-size: var(--text-lg); color: var(--oc-text-primary); margin-bottom: var(--spacing-4); flex-shrink: 0;">添加绑定</h3>
 
-        <div class="space-y-4">
+        <div class="space-y-4 flex-1 overflow-y-auto pr-1" style="min-height: 0;">
           <!-- Agent 选择 -->
           <div>
             <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">Agent *</Label>
@@ -945,6 +1016,32 @@ onMounted(async () => {
               <div v-if="showRoutingModeDropdown" class="oc-dropdown-menu absolute z-10 mt-1 w-full">
                 <div v-for="option in routingModeOptions" :key="option.value"
                      @click="formData.routingMode = option.value; showRoutingModeDropdown = false; onRoutingModeChange()"
+                     class="oc-dropdown-item cursor-pointer" style="font-size: var(--text-sm);">
+                  <div style="font-weight: var(--font-weight-medium); color: var(--oc-text-primary);">{{ option.label }}</div>
+                  <div style="font-size: var(--text-xs); color: var(--oc-text-muted);">{{ option.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 绑定类型选择 -->
+          <div>
+            <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">绑定类型</Label>
+            <div class="relative">
+              <Button variant="outline" size="sm" @click="showBindingTypeDropdown = !showBindingTypeDropdown"
+                      class="w-full h-auto min-h-9 py-2 text-left justify-between">
+                <div class="flex items-center gap-2">
+                  <LinkIcon class="w-4 h-4" style="color: var(--oc-text-muted);" />
+                  <div>
+                    <span style="font-size: var(--text-sm);">{{ selectedBindingTypeLabel }}</span>
+                    <span style="font-size: var(--text-xs); color: var(--oc-text-muted); margin-left: 8px;">{{ selectedBindingTypeDescription }}</span>
+                  </div>
+                </div>
+                <ChevronDown class="w-4 h-4 flex-shrink-0" :class="{ 'rotate-180': showBindingTypeDropdown }" />
+              </Button>
+              <div v-if="showBindingTypeDropdown" class="oc-dropdown-menu absolute z-10 mt-1 w-full">
+                <div v-for="option in bindingTypeOptions" :key="option.value"
+                     @click="formData.bindingType = option.value; showBindingTypeDropdown = false"
                      class="oc-dropdown-item cursor-pointer" style="font-size: var(--text-sm);">
                   <div style="font-weight: var(--font-weight-medium); color: var(--oc-text-primary);">{{ option.label }}</div>
                   <div style="font-size: var(--text-xs); color: var(--oc-text-muted);">{{ option.description }}</div>
@@ -1006,9 +1103,61 @@ onMounted(async () => {
               从消息平台获取的用户或群组 ID
             </p>
           </div>
+
+          <!-- Discord 专用字段 -->
+          <template v-if="isDiscordChannel">
+            <div style="padding-top: 8px; margin-top: 4px; border-top: 1px solid var(--oc-divider);">
+              <p style="font-size: var(--text-xs); font-weight: var(--font-weight-medium); color: var(--oc-text-secondary); margin-bottom: 8px;">
+                Discord 专用配置
+              </p>
+            </div>
+            <div>
+              <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">Guild ID（服务器 ID）</Label>
+              <Input v-model="(formData.discord ?? (formData.discord = {})).guildId" placeholder="例如: 987654321..." />
+            </div>
+            <div>
+              <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">Team ID</Label>
+              <Input v-model="(formData.discord ?? (formData.discord = {})).teamId" placeholder="可选，Discord 团队 ID" />
+            </div>
+            <div>
+              <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">Roles（角色过滤）</Label>
+              <Input :modelValue="(formData.discord?.roles || []).join(', ')"
+                      @update:modelValue="(v: string) => { if (!formData.discord) formData.discord = {}; formData.discord.roles = v.split(',').map((s: string) => s.trim()).filter(Boolean) }"
+                      placeholder="多个角色用逗号分隔，例如: admin, moderator" />
+            </div>
+          </template>
+
+          <!-- ACP 远程配置（bindingType 为 acp 时显示） -->
+          <template v-if="isAcpBindingType">
+            <div style="padding-top: 8px; margin-top: 4px; border-top: 1px solid var(--oc-divider);">
+              <p style="font-size: var(--text-xs); font-weight: var(--font-weight-medium); color: var(--oc-text-secondary); margin-bottom: 8px;">
+                ACP 远程 Agent 配置
+              </p>
+            </div>
+            <div>
+              <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">端点 URL *</Label>
+              <Input v-model="(formData.acp ?? (formData.acp = { endpoint: '' })).endpoint" placeholder="https://remote-agent.example.com" />
+            </div>
+            <div>
+              <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">协议类型</Label>
+              <Input v-model="(formData.acp ?? (formData.acp = { endpoint: '' })).protocol" placeholder="a2a（默认）" />
+            </div>
+            <div>
+              <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">能力声明</Label>
+              <Input :modelValue="(formData.acp?.capabilities || []).join(', ')"
+                      @update:modelValue="(v: string) => { if (!formData.acp) formData.acp = { endpoint: '' }; formData.acp.capabilities = v.split(',').map((s: string) => s.trim()).filter(Boolean) }"
+                      placeholder="多个能力用逗号分隔，例如: tools, resources" />
+            </div>
+          </template>
+
+          <!-- 备注 -->
+          <div>
+            <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">备注</Label>
+            <Input v-model="formData.comment" placeholder="可选，为绑定添加备注说明" />
+          </div>
         </div>
 
-        <div class="flex justify-end gap-2" style="margin-top: var(--spacing-6);">
+        <div class="flex justify-end gap-2 flex-shrink-0" style="padding-top: var(--spacing-4); border-top: 1px solid var(--oc-divider);">
           <Button variant="ghost" @click="closeAddModal">取消</Button>
           <Button @click="addBinding" :disabled="loading">
             <Plus v-if="!loading" class="w-4 h-4" />
@@ -1020,10 +1169,10 @@ onMounted(async () => {
 
     <!-- 编辑绑定弹窗 -->
     <div v-if="showEditModal" class="oc-modal-overlay" @click.self="closeEditModal">
-      <Card class="oc-modal-card w-full max-w-md p-6">
-        <h3 style="font-weight: var(--font-weight-semibold); font-size: var(--text-lg); color: var(--oc-text-primary); margin-bottom: var(--spacing-4);">编辑绑定</h3>
+      <Card class="oc-modal-card w-full max-w-md p-6 flex flex-col" style="max-height: 85vh;">
+        <h3 style="font-weight: var(--font-weight-semibold); font-size: var(--text-lg); color: var(--oc-text-primary); margin-bottom: var(--spacing-4); flex-shrink: 0;">编辑绑定</h3>
 
-        <div class="space-y-4">
+        <div class="space-y-4 flex-1 overflow-y-auto pr-1" style="min-height: 0;">
           <!-- Agent 选择 -->
           <div>
             <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">Agent *</Label>
@@ -1092,6 +1241,32 @@ onMounted(async () => {
             </div>
           </div>
 
+          <!-- 绑定类型选择 -->
+          <div>
+            <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">绑定类型</Label>
+            <div class="relative">
+              <Button variant="outline" size="sm" @click="showBindingTypeDropdown = !showBindingTypeDropdown"
+                      class="w-full h-auto min-h-9 py-2 text-left justify-between">
+                <div class="flex items-center gap-2">
+                  <LinkIcon class="w-4 h-4" style="color: var(--oc-text-muted);" />
+                  <div>
+                    <span style="font-size: var(--text-sm);">{{ selectedBindingTypeLabel }}</span>
+                    <span style="font-size: var(--text-xs); color: var(--oc-text-muted); margin-left: 8px;">{{ selectedBindingTypeDescription }}</span>
+                  </div>
+                </div>
+                <ChevronDown class="w-4 h-4 flex-shrink-0" :class="{ 'rotate-180': showBindingTypeDropdown }" />
+              </Button>
+              <div v-if="showBindingTypeDropdown" class="oc-dropdown-menu absolute z-10 mt-1 w-full">
+                <div v-for="option in bindingTypeOptions" :key="option.value"
+                     @click="formData.bindingType = option.value; showBindingTypeDropdown = false"
+                     class="oc-dropdown-item cursor-pointer" style="font-size: var(--text-sm);">
+                  <div style="font-weight: var(--font-weight-medium); color: var(--oc-text-primary);">{{ option.label }}</div>
+                  <div style="font-size: var(--text-xs); color: var(--oc-text-muted);">{{ option.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- 账号选择（accountId/both 模式显示） -->
           <div v-if="showAccountFields">
             <Label style="font-size: var(--text-sm); margin-bottom: 6px; display: block; color: var(--oc-text-primary);">账号 *</Label>
@@ -1144,7 +1319,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="flex justify-end gap-2" style="margin-top: var(--spacing-6);">
+        <div class="flex justify-end gap-2 flex-shrink-0" style="padding-top: var(--spacing-4); border-top: 1px solid var(--oc-divider);">
           <Button variant="ghost" @click="closeEditModal">取消</Button>
           <Button @click="updateBinding" :disabled="loading">
             <Check v-if="!loading" class="w-4 h-4" />
@@ -1361,6 +1536,46 @@ onMounted(async () => {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   绑定卡片扩展信息样式 - Binding Meta Tags
+   ═══════════════════════════════════════════════════════════ */
+
+.binding-meta-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.meta-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.meta-tag--discord {
+  background: color-mix(in srgb, #5865F2 12%, transparent);
+  color: #5865F2;
+}
+
+.meta-tag--acp {
+  background: color-mix(in srgb, var(--oc-accent) 12%, transparent);
+  color: var(--oc-accent);
+}
+
+.binding-comment {
+  font-size: 11px;
+  color: var(--oc-text-muted);
+  font-style: italic;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════
    未绑定 Agent 提示卡片样式 - Unbound Agents Warning Card
    ═══════════════════════════════════════════════════════════ */
 
@@ -1518,6 +1733,21 @@ onMounted(async () => {
 :root[data-theme='dark'] .unbound-agent-item:hover {
   background: color-mix(in srgb, var(--oc-warning) 10%, var(--oc-card-elevated));
   border-color: color-mix(in srgb, var(--oc-warning) 50%, transparent);
+}
+
+/* 深色模式 meta-tag */
+:root[data-theme='dark'] .meta-tag--discord {
+  background: color-mix(in srgb, #5865F2 20%, transparent);
+  color: #7983F5;
+}
+
+:root[data-theme='dark'] .meta-tag--acp {
+  background: color-mix(in srgb, var(--oc-accent) 20%, transparent);
+  color: var(--oc-accent);
+}
+
+:root[data-theme='dark'] .binding-comment {
+  color: rgba(255, 255, 255, 0.45);
 }
 
 :root[data-theme='dark'] .agent-icon-large {

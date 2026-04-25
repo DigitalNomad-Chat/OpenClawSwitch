@@ -123,20 +123,15 @@ fn chrono_now() -> String {
 
 /// 获取 Cron jobs 文件路径
 fn get_cron_jobs_path() -> Result<PathBuf, String> {
-    s! { let home_env = "HOME"; }
-    let home_dir = std::env::var(home_env)
-        .map_err(|_| s!("无法获取 HOME 目录").to_string())?;
+    let home_dir = dirs::home_dir().ok_or(s!("无法获取用户主目录").to_string())?;
     s! { let openclaw_dir = ".openclaw/cron/jobs.json"; }
-    Ok(PathBuf::from(home_dir).join(openclaw_dir))
+    Ok(home_dir.join(openclaw_dir))
 }
 
 /// 读取 Cron jobs 清单（严格模式，写操作使用）
 fn read_cron_jobs_manifest_strict() -> Result<CronJobsManifest, String> {
     let path = get_cron_jobs_path()?;
-    println!("🔍 [Cron] 读取文件: {:?}", path);
-
     if !path.exists() {
-        println!("⚠️  [Cron] 文件不存在，返回空清单");
         return Ok(CronJobsManifest {
             version: 1,
             jobs: vec![],
@@ -144,20 +139,11 @@ fn read_cron_jobs_manifest_strict() -> Result<CronJobsManifest, String> {
     }
 
     let content = fs::read_to_string(&path)
-        .map_err(|e| {
-            println!("❌ [Cron] 读取文件失败: {}", e);
-            format!("读取 Cron jobs 失败: {}", e)
-        })?;
-
-    println!("✅ [Cron] 文件大小: {} 字节", content.len());
+        .map_err(|e| format!("读取 Cron jobs 失败: {}", e))?;
 
     let manifest: CronJobsManifest = serde_json::from_str(&content)
-        .map_err(|e| {
-            println!("❌ [Cron] JSON 解析失败: {}", e);
-            format!("解析 Cron jobs 失败: {}", e)
-        })?;
+        .map_err(|e| format!("解析 Cron jobs 失败: {}", e))?;
 
-    println!("✅ [Cron] 成功加载 {} 个任务", manifest.jobs.len());
     Ok(manifest)
 }
 

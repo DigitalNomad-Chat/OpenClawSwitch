@@ -522,8 +522,31 @@ export type PeerKind = 'dm' | 'group'
 /** 路由模式 */
 export type RoutingMode = 'peer' | 'accountId' | 'both'
 
+/** 绑定类型（OpenClaw 2026.4.x+） */
+export type BindingType = 'route' | 'acp'
+
 /** 渠道类型 */
 export type ChannelId = 'feishu' | 'telegram' | 'discord' | 'slack' | 'whatsapp' | 'imessage' | 'wecom' | 'qq' | 'dingtalk'
+
+/** ACP 远程 Agent 配置（OpenClaw 2026.4.x+） */
+export interface AcpConfig {
+  /** 远程 Agent 端点 URL */
+  endpoint: string
+  /** 协议类型：a2a 等 */
+  protocol?: string
+  /** 能力声明 */
+  capabilities?: string[]
+}
+
+/** Discord 绑定扩展字段（OpenClaw 2026.4.x+） */
+export interface DiscordBindingFields {
+  /** Discord 服务器 ID */
+  guildId?: string
+  /** Discord 团队 ID */
+  teamId?: string
+  /** Discord 角色过滤 */
+  roles?: string[]
+}
 
 /** 绑定信息 */
 export interface BindingInfo {
@@ -534,6 +557,14 @@ export interface BindingInfo {
   accountId?: string                  // 账号 ID（accountId 模式）
   peerKind: PeerKind | string
   peerId: string
+  /** 绑定备注（OpenClaw 2026.4.x+） */
+  comment?: string
+  /** 绑定类型：route（默认）或 acp（OpenClaw 2026.4.x+） */
+  bindingType?: BindingType
+  /** ACP 远程配置（bindingType 为 acp 时有效） */
+  acp?: AcpConfig
+  /** Discord 专用字段 */
+  discord?: DiscordBindingFields
 }
 
 /** 绑定请求 */
@@ -544,6 +575,14 @@ export interface BindingRequest {
   accountId?: string                  // 账号 ID（accountId 模式）
   peerKind: PeerKind | string
   peerId: string
+  /** 绑定备注（OpenClaw 2026.4.x+） */
+  comment?: string
+  /** 绑定类型：route（默认）或 acp（OpenClaw 2026.4.x+） */
+  bindingType?: BindingType
+  /** ACP 远程配置（bindingType 为 acp 时有效） */
+  acp?: AcpConfig
+  /** Discord 专用字段 */
+  discord?: DiscordBindingFields
 }
 
 /** 账号选项 */

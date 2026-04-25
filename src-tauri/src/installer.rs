@@ -608,6 +608,17 @@ fn detect_openclaw_bin_path() -> Option<PathBuf> {
             return Some(candidate);
         }
     }
+
+    // Fallback: 检查 ~/.local/bin/openclaw（macOS/Linux 上常见安装位置）
+    if !cfg!(target_os = "windows") {
+        if let Some(home) = dirs::home_dir() {
+            let local_bin = home.join(".local/bin/openclaw");
+            if local_bin.exists() {
+                return Some(local_bin);
+            }
+        }
+    }
+
     None
 }
 
@@ -876,6 +887,45 @@ fn get_extension_meta(channel_id: &str) -> Result<(&'static str, &'static str, &
     }
 }
 
+/// 获取渠道的备选 npm 包名（兼容不同版本的插件包）
+fn get_extension_alt_package_names(channel_id: &str) -> Vec<&'static str> {
+    match channel_id {
+        "feishu" => vec!["@larksuiteoapi/feishu-openclaw-plugin"],
+        _ => vec![],
+    }
+}
+
+/// 读取 openclaw.json 中的 plugins.allow 列表
+/// OpenClaw 2026.4.x+ 中部分渠道（如飞书）已内置，通过 plugins.allow 启用
+fn read_plugins_allow() -> Vec<String> {
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return vec![],
+    };
+    let config_path = home.join(".openclaw").join("openclaw.json");
+    if !config_path.exists() {
+        return vec![];
+    }
+    let content = match std::fs::read_to_string(&config_path) {
+        Ok(c) => c,
+        Err(_) => return vec![],
+    };
+    let config: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return vec![],
+    };
+    config
+        .get("plugins")
+        .and_then(|p| p.get("allow"))
+        .and_then(|a| a.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn read_extension_package_name(package_json_path: &Path) -> Option<String> {
     let raw = std::fs::read_to_string(package_json_path).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&raw).ok()?;
@@ -913,19 +963,34 @@ fn find_extension_dir_by_package_name(package_name: &str) -> Option<PathBuf> {
 }
 
 fn is_channel_extension_installed(channel_id: &str) -> bool {
-    let (_, _, package_name) = match get_extension_meta(channel_id) {
+    // 新版 OpenClaw 2026.4.x+：部分渠道已内置为核心功能，通过 plugins.allow 启用
+    let plugins_allow = read_plugins_allow();
+    if plugins_allow.iter().any(|p| p == channel_id) {
+        return true;
+    }
+
+    // 旧版：检查 npm 插件包是否存在（支持多个备选包名）
+    let (_, _, primary_package) = match get_extension_meta(channel_id) {
         Ok(meta) => meta,
         Err(_) => return false,
     };
 
-    let target_dir = match find_extension_dir_by_package_name(package_name) {
-        Some(path) => path,
-        None => return false,
-    };
+    let alt_packages = get_extension_alt_package_names(channel_id);
+    let all_packages: Vec<&str> =
+        std::iter::once(primary_package).chain(alt_packages).collect();
 
-    target_dir.exists()
-        && target_dir.join("package.json").exists()
-        && target_dir.join("node_modules").exists()
+    for package_name in all_packages {
+        if let Some(target_dir) = find_extension_dir_by_package_name(package_name) {
+            if target_dir.exists()
+                && target_dir.join("package.json").exists()
+                && target_dir.join("node_modules").exists()
+            {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), String> {
@@ -1280,6 +1345,13 @@ fn run_shell(cmd: &str) -> Result<String, String> {
         let mut command = Command::new("cmd");
         apply_no_window(&mut command);
         command.args(["/c", cmd]).stdout(Stdio::piped()).stderr(Stdio::piped()).output()
+    } else if cfg!(target_os = "macos") {
+        // macOS: 使用 zsh -l 作为 login shell 执行，确保加载 ~/.zshrc 等 profile
+        // 否则 .app 启动的进程 PATH 不完整，找不到用户自定义安装的 node/openclaw 等
+        let mut command = Command::new("zsh");
+        command.args(["-l", "-c", cmd]).stdout(Stdio::piped()).stderr(Stdio::piped());
+        apply_no_window(&mut command);
+        command.output()
     } else {
         let mut command = Command::new("sh");
         command.args(["-c", cmd]).stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -1903,6 +1975,30 @@ pub fn check_openclaw_installed() -> OpenClawStatus {
             path,
             compatibility: get_compatibility(&version),
         };
+    }
+
+    // Fallback: 检查 ~/.local/bin/openclaw（macOS/Linux 上常见安装位置）
+    // openclaw 是 node 脚本（#!/usr/bin/env node），需要 node 在 PATH 中
+    if !cfg!(target_os = "windows") {
+        if let Some(home) = dirs::home_dir() {
+            let local_bin = home.join(".local/bin/openclaw");
+            if local_bin.exists() {
+                s! { let npm_global_bin = ".openclaw/npm-global/bin"; }
+                let env_path = format!(
+                    "export PATH=\"{}:$PATH\" &&",
+                    home.join(npm_global_bin).to_string_lossy()
+                );
+                let shell_cmd = format!("{} openclaw --version", env_path);
+                if let Ok(version) = run_shell(&shell_cmd) {
+                    return OpenClawStatus {
+                        installed: true,
+                        version: Some(version.clone()),
+                        path: Some(local_bin.to_string_lossy().to_string()),
+                        compatibility: get_compatibility(&version),
+                    };
+                }
+            }
+        }
     }
 
     OpenClawStatus {
@@ -2663,9 +2759,25 @@ fn extract_managed_node_archive(data: &[u8], version: &str) -> Result<PathBuf, S
 }
 
 fn verify_openclaw_available_now() -> Result<String, String> {
-    let version_raw = run_shell(&with_fnm_env("openclaw --version"))
-        .or_else(|_| run_cmd("openclaw", &["--version"]))?;
-    Ok(version_raw)
+    run_shell(&with_fnm_env("openclaw --version"))
+        .or_else(|_| run_cmd("openclaw", &["--version"]))
+        .or_else(|_| {
+            // Fallback: 检查 ~/.local/bin/openclaw（需要 node 在 PATH 中）
+            if !cfg!(target_os = "windows") {
+                if let Some(home) = dirs::home_dir() {
+                    let local_bin = home.join(".local/bin/openclaw");
+                    if local_bin.exists() {
+                        s! { let npm_global_bin = ".openclaw/npm-global/bin"; }
+                        let env_path = format!(
+                            "export PATH=\"{}:$PATH\" &&",
+                            home.join(npm_global_bin).to_string_lossy()
+                        );
+                        return run_shell(&format!("{} openclaw --version", env_path));
+                    }
+                }
+            }
+            Err("未找到 openclaw 命令".to_string())
+        })
 }
 
 /// 验证已安装的 OpenClaw 版本是否匹配锁定版本

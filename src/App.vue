@@ -1635,6 +1635,51 @@ onUnmounted(() => {
                 }}
               </p>
 
+              <!-- 诊断面板 -->
+              <details class="mt-3 rounded-lg" style="background: var(--oc-card); border: 1px solid var(--oc-card-border);">
+                <summary class="cursor-pointer select-none px-3 py-2 text-xs font-medium flex items-center justify-between" style="color: var(--oc-text-secondary); list-style: none;">
+                  <span>诊断信息</span>
+                  <span style="color: var(--oc-text-muted);">点击展开</span>
+                </summary>
+                <div class="px-3 pb-3 grid grid-cols-2 gap-2 text-xs">
+                  <div class="flex items-center gap-1.5">
+                    <span style="color: var(--oc-text-muted);">appState:</span>
+                    <span
+                      class="px-1.5 py-0.5 rounded font-medium"
+                      :style="{
+                        background: appState === 'READY' ? 'var(--oc-success)' : appState === 'ERROR' ? 'var(--oc-error)' : 'var(--oc-warning)',
+                        color: 'white'
+                      }"
+                    >{{ appState }}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <span style="color: var(--oc-text-muted);">envConnected:</span>
+                    <span :style="{ color: envConnected ? 'var(--oc-success)' : 'var(--oc-error)' }">{{ envConnected }}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <span style="color: var(--oc-text-muted);">openclawInstalled:</span>
+                    <span :style="{ color: openclawInstalled ? 'var(--oc-success)' : 'var(--oc-error)' }">{{ openclawInstalled }}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <span style="color: var(--oc-text-muted);">configLoaded:</span>
+                    <span :style="{ color: configLoaded ? 'var(--oc-success)' : 'var(--oc-error)' }">{{ configLoaded }}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <span style="color: var(--oc-text-muted);">gatewayReachable:</span>
+                    <span :style="{ color: gatewayReachable ? 'var(--oc-success)' : 'var(--oc-error)' }">{{ gatewayReachable }}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <span style="color: var(--oc-text-muted);">版本:</span>
+                    <span style="color: var(--oc-text-primary);">{{ envStatus?.openclaw?.version ?? '—' }}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 col-span-2">
+                    <span style="color: var(--oc-text-muted);">Schema:</span>
+                    <span style="color: var(--oc-text-primary);">{{ envStatus?.openclaw?.compatibility?.configSchema ?? '—' }}</span>
+                    <span v-if="envStatus?.openclaw?.compatibility?.message" style="color: var(--oc-text-muted);">({{ envStatus.openclaw.compatibility.message }})</span>
+                  </div>
+                </div>
+              </details>
+
               <div v-if="gateState === 'NO_TARGET'" class="mt-4 grid gap-3 md:grid-cols-2">
                 <button
                   type="button"

@@ -5,6 +5,29 @@ use obfstr::obfstr as s;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+/// Discord 绑定扩展字段
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscordBindingFields {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guild_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub team_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub roles: Option<Vec<String>>,
+}
+
+/// ACP 远程 Agent 配置
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpConfig {
+    pub endpoint: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub protocol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<Vec<String>>,
+}
+
 /// 绑定信息结构
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -16,6 +39,14 @@ pub struct BindingInfo {
     pub account_id: Option<String>,    // 账号 ID（accountId 模式）
     pub peer_kind: String,
     pub peer_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,       // 绑定备注
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binding_type: Option<String>,  // 绑定类型: route（默认）或 acp
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub acp: Option<AcpConfig>,        // ACP 远程配置
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discord: Option<DiscordBindingFields>,  // Discord 专用字段
 }
 
 /// 账号信息结构
@@ -36,6 +67,10 @@ pub struct BindingRequest {
     pub account_id: Option<String>,    // 账号 ID（accountId 模式）
     pub peer_kind: String,
     pub peer_id: String,
+    pub comment: Option<String>,       // 绑定备注
+    pub binding_type: Option<String>,  // 绑定类型: route（默认）或 acp
+    pub acp: Option<AcpConfig>,        // ACP 远程配置
+    pub discord: Option<DiscordBindingFields>,  // Discord 专用字段
 }
 
 /// 解析配置文件中的 bindings 数组
@@ -52,8 +87,24 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
                     .unwrap_or("")
                     .to_string();
 
+                // 解析绑定类型（默认 route）
+                let binding_type = obj
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+
+                // 解析备注
+                let comment = obj
+                    .get("comment")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+
+                // 解析 ACP 配置
+                let acp = obj.get("acp")
+                    .and_then(|v| serde_json::from_value::<AcpConfig>(v.clone()).ok());
+
                 // 解析路由模式字段（从 match 内部推断）
-                let (channel, peer_kind, peer_id, account_id) = if let Some(match_obj) = obj.get("match").and_then(|m| m.as_object()) {
+                let (channel, peer_kind, peer_id, account_id, discord) = if let Some(match_obj) = obj.get("match").and_then(|m| m.as_object()) {
                     let channel = match_obj
                         .get("channel")
                         .and_then(|v| v.as_str())
@@ -84,9 +135,26 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
                         ("dm".to_string(), "".to_string())
                     };
 
-                    (channel, peer_kind, peer_id, account_id)
+                    // 解析 Discord 专用字段
+                    let discord = if channel == "discord" {
+                        let guild_id = match_obj.get("guildId").and_then(|v| v.as_str()).map(String::from);
+                        let team_id = match_obj.get("teamId").and_then(|v| v.as_str()).map(String::from);
+                        let roles = match_obj.get("roles")
+                            .and_then(|v| v.as_array())
+                            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect());
+
+                        if guild_id.is_some() || team_id.is_some() || roles.is_some() {
+                            Some(DiscordBindingFields { guild_id, team_id, roles })
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    (channel, peer_kind, peer_id, account_id, discord)
                 } else {
-                    ("".to_string(), "dm".to_string(), "".to_string(), None)
+                    ("".to_string(), "dm".to_string(), "".to_string(), None, None)
                 };
 
                 // 根据 match 内容推断路由模式
@@ -104,12 +172,91 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
                     account_id,
                     peer_kind,
                     peer_id,
+                    comment,
+                    binding_type,
+                    acp,
+                    discord,
                 });
             }
         }
     }
 
     Ok(bindings)
+}
+
+/// 根据请求构建 match 对象（含 Discord 扩展字段）
+fn build_match_obj(request: &BindingRequest) -> Value {
+    let mode = request.routing_mode.as_deref().unwrap_or("peer");
+
+    let mut match_obj = match mode {
+        "accountId" => json!({
+            "channel": request.channel,
+            "accountId": request.account_id.as_deref().unwrap_or("")
+        }),
+        "both" => json!({
+            "channel": request.channel,
+            "accountId": request.account_id.as_deref().unwrap_or(""),
+            "peer": {
+                "kind": request.peer_kind,
+                "id": request.peer_id
+            }
+        }),
+        _ => json!({
+            "channel": request.channel,
+            "peer": {
+                "kind": request.peer_kind,
+                "id": request.peer_id
+            }
+        }),
+    };
+
+    // Discord 专用字段写入 match
+    if let Some(ref discord) = request.discord {
+        if let Some(obj) = match_obj.as_object_mut() {
+            if let Some(ref guild_id) = discord.guild_id {
+                obj.insert("guildId".to_string(), json!(guild_id));
+            }
+            if let Some(ref team_id) = discord.team_id {
+                obj.insert("teamId".to_string(), json!(team_id));
+            }
+            if let Some(ref roles) = discord.roles {
+                obj.insert("roles".to_string(), json!(roles));
+            }
+        }
+    }
+
+    match_obj
+}
+
+/// 根据请求构建完整绑定对象
+fn build_binding_json(request: &BindingRequest) -> Value {
+    let match_obj = build_match_obj(request);
+
+    let mut binding = json!({
+        "agentId": request.agent_id,
+        "match": match_obj
+    });
+
+    // 绑定类型（默认 route，ACP 时写入）
+    if let Some(ref bt) = request.binding_type {
+        if bt != "route" {
+            binding.as_object_mut().unwrap().insert("type".to_string(), json!(bt));
+        }
+    }
+
+    // 备注
+    if let Some(ref comment) = request.comment {
+        if !comment.is_empty() {
+            binding.as_object_mut().unwrap().insert("comment".to_string(), json!(comment));
+        }
+    }
+
+    // ACP 配置
+    if let Some(ref acp) = request.acp {
+        binding.as_object_mut().unwrap().insert("acp".to_string(), serde_json::to_value(acp).unwrap_or_default());
+    }
+
+    binding
 }
 
 /// 添加新的绑定
@@ -137,34 +284,7 @@ pub fn add_binding(mut config: Value, request: BindingRequest) -> Result<Value, 
         return Err(s!("账号 ID 不能为空").to_string());
     }
 
-    // 根据路由模式构建 match 对象（accountId 和 peer 都在 match 内部）
-    let match_obj = match mode {
-        "accountId" => json!({
-            "channel": request.channel,
-            "accountId": request.account_id.as_deref().unwrap_or("")
-        }),
-        "both" => json!({
-            "channel": request.channel,
-            "accountId": request.account_id.as_deref().unwrap_or(""),
-            "peer": {
-                "kind": request.peer_kind,
-                "id": request.peer_id
-            }
-        }),
-        // peer 模式（默认）
-        _ => json!({
-            "channel": request.channel,
-            "peer": {
-                "kind": request.peer_kind,
-                "id": request.peer_id
-            }
-        }),
-    };
-
-    let new_binding = json!({
-        "agentId": request.agent_id,
-        "match": match_obj
-    });
+    let new_binding = build_binding_json(&request);
 
     // 添加到数组
     if let Some(bindings) = config.get_mut("bindings").and_then(|b| b.as_array_mut()) {
@@ -214,36 +334,7 @@ pub fn update_binding(mut config: Value, index: usize, request: BindingRequest) 
             return Err(format!("绑定索引 {} 超出范围", index));
         }
 
-        // 根据路由模式构建 match 对象（accountId 和 peer 都在 match 内部）
-        let mode = request.routing_mode.as_deref().unwrap_or("peer");
-        let match_obj = match mode {
-            "accountId" => json!({
-                "channel": request.channel,
-                "accountId": request.account_id.as_deref().unwrap_or("")
-            }),
-            "both" => json!({
-                "channel": request.channel,
-                "accountId": request.account_id.as_deref().unwrap_or(""),
-                "peer": {
-                    "kind": request.peer_kind,
-                    "id": request.peer_id
-                }
-            }),
-            // peer 模式（默认）
-            _ => json!({
-                "channel": request.channel,
-                "peer": {
-                    "kind": request.peer_kind,
-                    "id": request.peer_id
-                }
-            }),
-        };
-
-        let updated_binding = json!({
-            "agentId": request.agent_id,
-            "match": match_obj
-        });
-
+        let updated_binding = build_binding_json(&request);
         bindings[index] = updated_binding;
     } else {
         return Err(s!("配置文件中没有 bindings 数组").to_string());
@@ -406,6 +497,10 @@ mod tests {
             account_id: None,
             peer_kind: "dm".to_string(),
             peer_id: "ou_123".to_string(),
+            comment: None,
+            binding_type: None,
+            acp: None,
+            discord: None,
         };
 
         let result = add_binding(config, request).unwrap();
@@ -452,6 +547,10 @@ mod tests {
             account_id: None,
             peer_kind: "group".to_string(),
             peer_id: "oc_456".to_string(),
+            comment: Some("测试备注".to_string()),
+            binding_type: None,
+            acp: None,
+            discord: None,
         };
 
         let result = update_binding(config, 0, request).unwrap();
@@ -460,6 +559,132 @@ mod tests {
         assert_eq!(bindings[0]["agentId"], "ops-manager");
         assert_eq!(bindings[0]["match"]["peer"]["kind"], "group");
         assert_eq!(bindings[0]["match"]["peer"]["id"], "oc_456");
+        assert_eq!(bindings[0]["comment"], "测试备注");
+    }
+
+    #[test]
+    fn test_parse_binding_with_comment() {
+        let config = json!({
+            "bindings": [
+                {
+                    "agentId": "main",
+                    "comment": "主账号绑定",
+                    "match": {
+                        "channel": "feishu",
+                        "peer": { "kind": "dm", "id": "ou_123" }
+                    }
+                }
+            ]
+        });
+
+        let result = parse_bindings(config).unwrap();
+        assert_eq!(result[0].comment, Some("主账号绑定".to_string()));
+    }
+
+    #[test]
+    fn test_parse_discord_binding() {
+        let config = json!({
+            "bindings": [
+                {
+                    "agentId": "main",
+                    "match": {
+                        "channel": "discord",
+                        "peer": { "kind": "group", "id": "123456" },
+                        "guildId": "987654",
+                        "roles": ["admin", "moderator"]
+                    }
+                }
+            ]
+        });
+
+        let result = parse_bindings(config).unwrap();
+        assert_eq!(result[0].channel, "discord");
+        let discord = result[0].discord.as_ref().unwrap();
+        assert_eq!(discord.guild_id, Some("987654".to_string()));
+        assert_eq!(discord.roles, Some(vec!["admin".to_string(), "moderator".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_acp_binding() {
+        let config = json!({
+            "bindings": [
+                {
+                    "agentId": "main",
+                    "type": "acp",
+                    "match": {
+                        "channel": "feishu",
+                        "peer": { "kind": "dm", "id": "ou_123" }
+                    },
+                    "acp": {
+                        "endpoint": "https://remote-agent.example.com",
+                        "protocol": "a2a",
+                        "capabilities": ["tools", "resources"]
+                    }
+                }
+            ]
+        });
+
+        let result = parse_bindings(config).unwrap();
+        assert_eq!(result[0].binding_type, Some("acp".to_string()));
+        let acp = result[0].acp.as_ref().unwrap();
+        assert_eq!(acp.endpoint, "https://remote-agent.example.com");
+        assert_eq!(acp.protocol, Some("a2a".to_string()));
+        assert_eq!(acp.capabilities, Some(vec!["tools".to_string(), "resources".to_string()]));
+    }
+
+    #[test]
+    fn test_add_acp_binding() {
+        let config = json!({});
+        let request = BindingRequest {
+            agent_id: "main".to_string(),
+            channel: "feishu".to_string(),
+            routing_mode: None,
+            account_id: None,
+            peer_kind: "dm".to_string(),
+            peer_id: "ou_123".to_string(),
+            comment: Some("ACP 远程绑定".to_string()),
+            binding_type: Some("acp".to_string()),
+            acp: Some(AcpConfig {
+                endpoint: "https://remote.example.com".to_string(),
+                protocol: Some("a2a".to_string()),
+                capabilities: Some(vec!["tools".to_string()]),
+            }),
+            discord: None,
+        };
+
+        let result = add_binding(config, request).unwrap();
+        let bindings = result.get("bindings").and_then(|b| b.as_array()).unwrap();
+        assert_eq!(bindings[0]["type"], "acp");
+        assert_eq!(bindings[0]["comment"], "ACP 远程绑定");
+        assert_eq!(bindings[0]["acp"]["endpoint"], "https://remote.example.com");
+    }
+
+    #[test]
+    fn test_add_discord_binding() {
+        let config = json!({});
+        let request = BindingRequest {
+            agent_id: "main".to_string(),
+            channel: "discord".to_string(),
+            routing_mode: None,
+            account_id: None,
+            peer_kind: "group".to_string(),
+            peer_id: "123456".to_string(),
+            comment: None,
+            binding_type: None,
+            acp: None,
+            discord: Some(DiscordBindingFields {
+                guild_id: Some("987654".to_string()),
+                team_id: None,
+                roles: Some(vec!["admin".to_string()]),
+            }),
+        };
+
+        let result = add_binding(config, request).unwrap();
+        let bindings = result.get("bindings").and_then(|b| b.as_array()).unwrap();
+        assert_eq!(bindings[0]["match"]["guildId"], "987654");
+        assert_eq!(bindings[0]["match"]["roles"], json!(["admin"]));
+        // route 类型不应写入 type 字段
+        assert!(bindings[0].get("type").is_none());
     }
 }
 

@@ -481,7 +481,7 @@ const channelSupportsMultipleAccounts = (channelId: ChannelId): boolean =>
 
 interface AgentOption {
   id: string
-  label: string
+  name: string
 }
 
 interface AccountOption {
@@ -522,7 +522,7 @@ const loadStoredForms = (): Record<ChannelId, ChannelForm> => {
 }
 
 const forms = ref<Record<ChannelId, ChannelForm>>(loadStoredForms())
-const availableAgents = ref<AgentOption[]>([{ id: 'default', label: 'default' }])
+const availableAgents = ref<AgentOption[]>([{ id: 'default', name: 'default' }])
 const selectedAgentByChannel = ref<Record<ChannelId, string>>(buildChannelRecord(() => 'default'))
 const configuredByChannel = ref<Record<ChannelId, boolean>>(buildChannelRecord(() => false))
 const availableAccountsByChannel = ref<Record<ChannelId, AccountOption[]>>(
@@ -553,6 +553,8 @@ const showAccountModal = ref(false)
 const accountInput = ref('')
 const submittingAccount = ref(false)
 const showAccountSelectorDropdown = ref(false)
+const showAgentDropdown = ref(false)
+const newAccountAgentId = ref('default')
 
 let unlistenExtensionInstallLog: (() => void) | null = null
 let unlistenExtensionInstallState: (() => void) | null = null
@@ -843,9 +845,14 @@ const readCurrentAccountValue = (
   return undefined
 }
 
-const parseAgentOptions = (root: JsonRecord): AgentOption[] => {
-  void root
-  return [{ id: 'default', label: 'default' }]
+const loadAgentOptions = async (config: JsonRecord): Promise<AgentOption[]> => {
+  try {
+    const result = await invoke<[string, string][]>('get_agent_options', { config })
+    return result.map(([id, name]) => ({ id, name }))
+  } catch (error) {
+    console.error('加载 Agent 选项失败:', error)
+    return [{ id: 'default', name: 'default' }]
+  }
 }
 
 const parseBindings = (root: JsonRecord): JsonRecord[] => {
@@ -872,8 +879,7 @@ const resolveBindingAccountId = (
 const collectChannelAccountIds = (
   channelNode: JsonRecord,
   bindings: JsonRecord[],
-  channelId: ChannelId,
-  agentOptions: AgentOption[]
+  channelId: ChannelId
 ): string[] => {
   const ids = new Set<string>()
 
@@ -890,13 +896,6 @@ const collectChannelAccountIds = (
     if (!bindingChannelMatches(channelId, match.channel)) continue
     const accountId = asString(match.accountId).trim()
     if (accountId) ids.add(accountId)
-  }
-
-  if (agentOptions.length > 1) {
-    for (const agent of agentOptions) {
-      const agentId = agent.id.trim()
-      if (agentId) ids.add(agentId)
-    }
   }
 
   if (ids.size === 0) ids.add('default')
@@ -1126,15 +1125,13 @@ const handleAccountSelectionChange = async (value: string) => {
   await syncChannelsFromConfig()
 }
 
-const handleAccountInputChange = (value: string) => {
-  accountInput.value = value
-}
-
 const openAccountModal = () => {
   if (!channelSupportsMultipleAccounts(selectedChannelId.value)) return
   accountInput.value = ''
+  newAccountAgentId.value = 'default'
   selectedPanel.value = 'credentials'
   showAccountSelectorDropdown.value = false
+  showAgentDropdown.value = false
   showAccountModal.value = true
 
   // 仅重置凭据字段，保留策略类配置
@@ -1147,14 +1144,6 @@ const openAccountModal = () => {
     form.slackBotToken = ''
     form.slackAppToken = ''
     form.slackSigningSecret = ''
-    form.feishuAppId = ''
-    form.feishuAppSecret = ''
-    form.wecomBotId = ''
-    form.wecomSecret = ''
-    form.qqAppId = ''
-    form.qqClientSecret = ''
-    form.dingtalkClientId = ''
-    form.dingtalkClientSecret = ''
     form.dingtalkRobotCode = ''
     form.dingtalkCorpId = ''
     form.dingtalkAgentId = ''
@@ -1280,7 +1269,6 @@ const enabledLabel = computed(() => (currentForm.value.enabled ? '已启用' : '
 // 群组级策略覆盖：添加群组相关状态
 const showFeishuGroupAdd = ref(false)
 const newFeishuGroupId = ref('')
-const feishuGroupInputRef = ref<HTMLInputElement | null>(null)
 const addFeishuGroup = () => {
   const id = newFeishuGroupId.value.trim()
   if (!id) return
@@ -1663,12 +1651,12 @@ const syncChannelsFromConfig = async () => {
     const root = config as JsonRecord
     const channelsRaw = asRecord(root.channels) || {}
     const bindings = parseBindings(root)
-    const agentOptions = parseAgentOptions(root)
+    const agentOptions = await loadAgentOptions(root)
     availableAgents.value = agentOptions
 
     for (const channelId of channelIds) {
       const channelNode = getChannelConfigNode(channelsRaw, channelId)
-      const accountIds = collectChannelAccountIds(channelNode, bindings, channelId, agentOptions)
+      const accountIds = collectChannelAccountIds(channelNode, bindings, channelId)
       availableAccountsByChannel.value[channelId] = accountIds.map(accountId => {
         const accountNode = accountId === 'default' ? channelNode : getAccountNode(channelNode, accountId)
         const label =
@@ -1954,14 +1942,15 @@ const syncChannelsFromConfig = async () => {
       'allowlist'
     )
     forms.value.feishu.feishuGroupAllowFrom = listToText(readFeishuShared(['groupAllowFrom']))
-    forms.value.feishu.feishuRequireMention = readFeishuShared(['requireMention']) ?? true
+    const requireMentionRaw = readFeishuShared(['requireMention'])
+    forms.value.feishu.feishuRequireMention = requireMentionRaw != null ? !!requireMentionRaw : true
     // 群组级 requireMention 覆盖（跳过 "*" 通配符和 inherit 条目，仅显示显式覆盖的群组）
     const feishuGroupsRaw = asRecord(readFeishuShared(['groups'])) || {}
     forms.value.feishu.feishuGroups = Object.entries(feishuGroupsRaw)
-      .filter(([id, cfg]) => id !== '*' && asRecord(cfg).requireMention !== undefined)
+      .filter(([id, cfg]) => id !== '*' && asRecord(cfg)?.requireMention !== undefined)
       .map(([id, cfg]) => ({
         id,
-        requireMention: asRecord(cfg).requireMention as boolean
+        requireMention: !!asRecord(cfg)?.requireMention
       }))
     forms.value.feishu.feishuGroupCommandMentionBypass = enumOrDefault(
       readFeishuShared(['groupCommandMentionBypass']),
@@ -2379,6 +2368,9 @@ const handleClickOutside = (event: MouseEvent) => {
   if (!target?.closest('.message-channel-account-dropdown')) {
     showAccountSelectorDropdown.value = false
   }
+  if (!target?.closest('.oc-select') && !target?.closest('.oc-dropdown-menu')) {
+    showAgentDropdown.value = false
+  }
 }
 
 onMounted(async () => {
@@ -2794,12 +2786,30 @@ onUnmounted(() => {
 
                   <div>
                     <label class="mb-1.5 block text-sm font-medium" style="color: var(--oc-text-secondary);">Agent ID（{{ accountScopedFieldPath('agentId') }}）</label>
-                    <Input
-                      :model-value="currentForm.dingtalkAgentId"
-                      placeholder="main / 123456"
-                      :disabled="!canConfigureCurrentChannel"
-                      @update:model-value="(value) => { currentForm.dingtalkAgentId = value }"
-                    />
+                    <div class="relative">
+                      <select
+                        :value="currentForm.dingtalkAgentId"
+                        class="oc-select w-full"
+                        :disabled="!canConfigureCurrentChannel"
+                        @change="(event) => { currentForm.dingtalkAgentId = (event.target as HTMLSelectElement).value }"
+                      >
+                        <option value="">请选择 Agent</option>
+                        <option
+                          v-for="agent in availableAgents"
+                          :key="agent.id"
+                          :value="agent.id"
+                        >
+                          {{ agent.name === agent.id ? agent.id : `${agent.name} (${agent.id})` }}
+                        </option>
+                      </select>
+                      <div
+                        v-if="currentForm.dingtalkAgentId"
+                        class="mt-1 text-xs"
+                        style="color: var(--oc-text-muted);"
+                      >
+                        {{ availableAgents.find(a => a.id === currentForm.dingtalkAgentId)?.name ?? currentForm.dingtalkAgentId }}
+                      </div>
+                    </div>
                   </div>
 
                   <div>
@@ -4117,19 +4127,63 @@ onUnmounted(() => {
       @confirm="submitPairing"
     />
 
-    <CommonInputConfirmModal
-      v-if="showAccountModal"
-      title="新增账号"
-      description="请输入账号 ID。该值会作为 channels.*.accounts 下的键名。"
-      placeholder="main / ops / coding-plan"
-      note="仅支持字母、数字、点、下划线和中划线。创建后会复制当前账号配置到新账号。"
-      :model-value="accountInput"
-      :loading="submittingAccount"
-      :confirm-text="submittingAccount ? '创建中...' : '创建账号'"
-      @update:model-value="handleAccountInputChange"
-      @cancel="closeAccountModal"
-      @confirm="submitAccount"
-    />
+    <!-- 新增账号弹窗 -->
+    <div v-if="showAccountModal" class="oc-modal-overlay" @click.self="closeAccountModal">
+      <Card class="oc-modal-card w-full max-w-lg p-8 flex flex-col">
+        <h3 style="font-weight: var(--font-weight-semibold); font-size: var(--text-lg); color: var(--oc-text-primary); margin-bottom: var(--spacing-6); flex-shrink: 0;">新增账号</h3>
+
+        <div class="space-y-6">
+          <!-- Agent 选择 -->
+          <div>
+            <label class="mb-2 block text-sm font-medium" style="color: var(--oc-text-secondary);">关联 Agent</label>
+            <div class="relative">
+              <button
+                type="button"
+                class="oc-select w-full text-left flex items-center justify-between"
+                @click="showAgentDropdown = !showAgentDropdown"
+              >
+                <span class="text-sm truncate">{{ availableAgents.find(a => a.id === newAccountAgentId)?.name ?? newAccountAgentId }}</span>
+                <ChevronDown class="h-4 w-4 shrink-0" :class="{ 'rotate-180': showAgentDropdown }" />
+              </button>
+              <div v-if="showAgentDropdown" class="oc-dropdown-menu absolute z-10 mt-1 w-full max-h-[28rem] overflow-auto">
+                <div
+                  v-for="agent in availableAgents"
+                  :key="agent.id"
+                  class="oc-dropdown-item cursor-pointer"
+                  @click="newAccountAgentId = agent.id; accountInput = agent.id; showAgentDropdown = false"
+                >
+                  <div style="font-weight: var(--font-weight-medium); color: var(--oc-text-primary); font-size: var(--text-sm);">
+                    {{ agent.name }}
+                  </div>
+                  <div v-if="agent.name !== agent.id" style="font-size: var(--text-xs); color: var(--oc-text-muted);">{{ agent.id }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 账号 ID 输入 -->
+          <div>
+            <label class="mb-2 block text-sm font-medium" style="color: var(--oc-text-secondary);">账号 ID</label>
+            <input
+              :value="accountInput"
+              type="text"
+              class="oc-input w-full"
+              placeholder="main / ops / coding-plan"
+              @input="(e: Event) => { accountInput = (e.target as HTMLInputElement).value }"
+            />
+            <p class="mt-1.5 text-xs" style="color: var(--oc-text-muted);">作为 channels.*.accounts 下的键名。仅支持小写字母、数字、点、下划线和中划线。</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 flex-shrink-0" style="padding-top: var(--spacing-6); border-top: 1px solid var(--oc-divider);">
+          <Button variant="outline" :disabled="submittingAccount" @click="closeAccountModal">取消</Button>
+          <Button :disabled="submittingAccount || !accountInput.trim()" @click="submitAccount">
+            <Loader2 v-if="submittingAccount" class="h-4 w-4 animate-spin mr-1.5" />
+            {{ submittingAccount ? '创建中...' : '创建账号' }}
+          </Button>
+        </div>
+      </Card>
+    </div>
 
     <div v-if="showInstallModal" class="oc-modal-overlay" @click.self="closeInstallModal">
       <Card :class="messageChannelInstallModalLayout.card">
