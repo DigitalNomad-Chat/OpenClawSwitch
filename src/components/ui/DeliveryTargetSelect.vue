@@ -170,7 +170,7 @@ watch(isOpen, (open) => {
   }
 })
 
-// 监控 options 变化（调试用）
+// 监控 options 变化（调试用 + 重复检测）
 watch(() => props.options, (newOptions) => {
   console.log('[DeliveryTargetSelect] options changed:', newOptions.length, 'items')
   if (newOptions.length > 0) {
@@ -178,6 +178,12 @@ watch(() => props.options, (newOptions) => {
     console.log('[DeliveryTargetSelect] first option agentName:', newOptions[0].agentName)
   } else {
     console.log('[DeliveryTargetSelect] options is empty!')
+  }
+  // 防御：检测重复 value
+  const values = newOptions.map(o => o.value)
+  const dupes = values.filter((v, i) => values.indexOf(v) !== i)
+  if (dupes.length > 0) {
+    console.error('[DeliveryTargetSelect] DUPLICATE option values detected:', [...new Set(dupes)])
   }
 }, { deep: true, immediate: true })
 </script>

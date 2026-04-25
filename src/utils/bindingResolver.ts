@@ -288,11 +288,14 @@ export function createDeliveryTargetOptions(
   bindings: BindingInfo[],
   agents: AgentInfo[]
 ): DeliveryTargetOption[] {
-  return bindings.map(binding => {
+  // 过滤无效的绑定（缺少 channel 或 peerId）
+  const validBindings = bindings.filter(b => b.channel && b.peerId)
+  const seen = new Map<string, number>()
+
+  return validBindings.map(binding => {
     // 获取 Agent 信息
     const agent = agents.find(a => a.id === binding.agentId)
     // Agent 纯名称（不含 ID），用于简化显示
-    // 优先使用 agent.name，如果不存在或与 id 相同，则使用 agent.id
     let agentSimpleName = binding.agentId
     if (agent) {
       agentSimpleName = (agent.name && agent.name !== agent.id) ? agent.name : agent.id
@@ -305,8 +308,14 @@ export function createDeliveryTargetOptions(
 
     const label = `${icon} ${agentSimpleName}的${peerKindName} (${maskedId})`
 
+    // 去重：同一 channel + peerId 出现多次时，加序号后缀
+    const rawValue = `${binding.channel}:${binding.peerId}`
+    const count = (seen.get(rawValue) || 0) + 1
+    seen.set(rawValue, count)
+    const value = count > 1 ? `${rawValue}#${count}` : rawValue
+
     return {
-      value: `${binding.channel}:${binding.peerId}`,
+      value,
       label,
       channel: binding.channel,
       peerKind: binding.peerKind,
@@ -322,12 +331,14 @@ export function createDeliveryTargetOptions(
  * value 格式: "channel:peerId"
  */
 export function parseDeliveryTargetValue(value: string): { channel: string; peerId: string } {
-  const colonIndex = value.indexOf(':')
+  // 剥离去重后缀 #N
+  const cleanValue = value.replace(/#\d+$/, '')
+  const colonIndex = cleanValue.indexOf(':')
   if (colonIndex === -1) {
-    return { channel: value, peerId: '' }
+    return { channel: cleanValue, peerId: '' }
   }
   return {
-    channel: value.substring(0, colonIndex),
-    peerId: value.substring(colonIndex + 1)
+    channel: cleanValue.substring(0, colonIndex),
+    peerId: cleanValue.substring(colonIndex + 1)
   }
 }

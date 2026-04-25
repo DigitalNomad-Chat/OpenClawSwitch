@@ -40,7 +40,7 @@ const emit = defineEmits<{
 // provide 提供的是 ref/computed，直接使用
 const bindings = inject<Ref<BindingInfo[]>>('cronBindings')
 const agents = inject<Ref<AgentInfo[]>>('cronAgents')
-const deliveryTargetOptions = inject<ComputedRef<Array<{ value: string; label: string; channel: string; peerId: string; peerKind: string; agentId?: string; agentName?: string }>>>('cronDeliveryTargetOptions')
+const deliveryTargetOptions = inject<ComputedRef<Array<{ value: string; label: string; channel: string; peerId: string; peerKind: string; agentId?: string; agentName?: string }>>>('cronDeliveryTargetOptions', computed(() => []))
 const parseDeliveryTargetValue = inject<(value: string) => { channel: string; peerId: string }>('cronParseDeliveryTargetValue', (v: string) => {
   const i = v.indexOf(':')
   return i === -1 ? { channel: v, peerId: '' } : { channel: v.substring(0, i), peerId: v.substring(i + 1) }

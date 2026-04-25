@@ -13,9 +13,13 @@ export interface BindingInfo {
   agentId: string
   /** 渠道类型: feishu, telegram 等 */
   channel: string
+  /** 路由模式: peer, accountId, both */
+  routingMode?: string
+  /** 账号 ID（accountId 模式） */
+  accountId?: string
   /** 对端类型: dm(私聊), group(群组) */
   peerKind: string
-  /** 对端 ID */
+  /** 对端 ID 或 accountId 填充值 */
   peerId: string
 }
 

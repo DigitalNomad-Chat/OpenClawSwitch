@@ -129,6 +129,7 @@ fn get_cron_jobs_path() -> Result<PathBuf, String> {
 }
 
 /// 读取 Cron jobs 清单（严格模式，写操作使用）
+/// 整体解析失败时自动降级修复，确保写操作不因历史数据损坏而阻塞
 fn read_cron_jobs_manifest_strict() -> Result<CronJobsManifest, String> {
     let path = get_cron_jobs_path()?;
     if !path.exists() {
@@ -141,10 +142,25 @@ fn read_cron_jobs_manifest_strict() -> Result<CronJobsManifest, String> {
     let content = fs::read_to_string(&path)
         .map_err(|e| format!("读取 Cron jobs 失败: {}", e))?;
 
-    let manifest: CronJobsManifest = serde_json::from_str(&content)
-        .map_err(|e| format!("解析 Cron jobs 失败: {}", e))?;
+    // 快速路径：整体解析成功直接返回
+    if let Ok(manifest) = serde_json::from_str::<CronJobsManifest>(&content) {
+        return Ok(manifest);
+    }
 
-    Ok(manifest)
+    // 降级路径：使用容错解析修复损坏的数据
+    eprintln!("[read_cron_jobs_manifest_strict] 整体解析失败，尝试容错修复...");
+    let result = read_cron_jobs_manifest_tolerant()?;
+    if !result.warnings.is_empty() {
+        eprintln!(
+            "[read_cron_jobs_manifest_strict] 修复完成，{} 个任务已修复，{} 个任务无法修复",
+            result.repaired_count,
+            result.warnings.len()
+        );
+    }
+    Ok(CronJobsManifest {
+        version: 1,
+        jobs: result.jobs,
+    })
 }
 
 /// 尝试自动修复单个任务 JSON
@@ -188,12 +204,12 @@ fn try_repair_cron_job(item: &serde_json::Value) -> Option<CronJob> {
         patched.as_object_mut().unwrap().insert("enabled".to_string(), serde_json::Value::Bool(true));
     }
 
-    // 规则 7: 缺少时间戳，填充当前值
+    // 规则 7: 缺少时间戳（或为 null），填充当前值
     let now = chrono_now().parse::<i64>().unwrap_or(0);
-    if patched.get("createdAtMs").is_none() {
+    if patched.get("createdAtMs").map_or(true, |v| v.is_null()) {
         patched.as_object_mut().unwrap().insert("createdAtMs".to_string(), serde_json::json!(now));
     }
-    if patched.get("updatedAtMs").is_none() {
+    if patched.get("updatedAtMs").map_or(true, |v| v.is_null()) {
         patched.as_object_mut().unwrap().insert("updatedAtMs".to_string(), serde_json::json!(now));
     }
 

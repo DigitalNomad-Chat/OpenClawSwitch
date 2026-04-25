@@ -126,9 +126,11 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
 
                         let id = peer
                             .get("id")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
+                            .and_then(|v| v.as_str().map(String::from))
+                            .or_else(|| peer.get("id").and_then(|v| v.as_i64()).map(|n| n.to_string()))
+                            .or_else(|| peer.get("id").and_then(|v| v.as_u64()).map(|n| n.to_string()))
+                            .or_else(|| peer.get("id").and_then(|v| v.as_f64()).map(|n| n.to_string()))
+                            .unwrap_or_default();
 
                         (kind, id)
                     } else {
@@ -164,6 +166,17 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
                     (None, _) => None, // peer 模式（默认）
                 };
 
+                // accountId 模式下 peer_id 为空，用 account_id 填充作为投递目标的唯一标识
+                let display_peer_id = if peer_id.is_empty() {
+                    if let Some(ref aid) = account_id {
+                        aid.clone()
+                    } else {
+                        peer_id.clone()
+                    }
+                } else {
+                    peer_id.clone()
+                };
+
                 bindings.push(BindingInfo {
                     index,
                     agent_id,
@@ -171,7 +184,7 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
                     routing_mode,
                     account_id,
                     peer_kind,
-                    peer_id,
+                    peer_id: display_peer_id,
                     comment,
                     binding_type,
                     acp,
@@ -685,6 +698,82 @@ mod tests {
         assert_eq!(bindings[0]["match"]["roles"], json!(["admin"]));
         // route 类型不应写入 type 字段
         assert!(bindings[0].get("type").is_none());
+    }
+
+    #[test]
+    fn test_parse_accountId_mode_binding() {
+        // accountId 模式：无 peer 对象，只有 accountId
+        let config = json!({
+            "bindings": [{
+                "agentId": "main",
+                "match": {
+                    "channel": "feishu",
+                    "accountId": "default"
+                }
+            }]
+        });
+        let result = parse_bindings(config).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].agent_id, "main");
+        assert_eq!(result[0].channel, "feishu");
+        assert_eq!(result[0].peer_id, "default");  // accountId 填充到 peer_id
+        assert_eq!(result[0].account_id, Some("default".to_string()));
+        assert_eq!(result[0].routing_mode, Some("accountId".to_string()));
+        assert_eq!(result[0].peer_kind, "dm");
+    }
+
+    #[test]
+    fn test_parse_both_mode_binding() {
+        // both 模式：同时有 accountId 和 peer
+        let config = json!({
+            "bindings": [{
+                "agentId": "main",
+                "match": {
+                    "channel": "feishu",
+                    "accountId": "default",
+                    "peer": { "kind": "dm", "id": "ou_123" }
+                }
+            }]
+        });
+        let result = parse_bindings(config).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].peer_id, "ou_123");  // peerId 优先
+        assert_eq!(result[0].account_id, Some("default".to_string()));
+        assert_eq!(result[0].routing_mode, Some("both".to_string()));
+    }
+
+    #[test]
+    fn test_parse_numeric_peer_id() {
+        // peer.id 为数字类型（Discord/Telegram 常见）
+        let config = json!({
+            "bindings": [{
+                "agentId": "main",
+                "match": {
+                    "channel": "discord",
+                    "peer": { "kind": "group", "id": -1001234567890_i64 }
+                }
+            }]
+        });
+        let result = parse_bindings(config).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].peer_id, "-1001234567890");  // 转为字符串
+    }
+
+    #[test]
+    fn test_parse_null_peer_id() {
+        // peer.id 为 null
+        let config = json!({
+            "bindings": [{
+                "agentId": "main",
+                "match": {
+                    "channel": "feishu",
+                    "peer": { "kind": "dm", "id": null }
+                }
+            }]
+        });
+        let result = parse_bindings(config).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].peer_id, "");  // null 回退为空
     }
 }
 
