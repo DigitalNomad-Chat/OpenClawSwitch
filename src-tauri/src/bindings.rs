@@ -166,17 +166,6 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
                     (None, _) => None, // peer 模式（默认）
                 };
 
-                // accountId 模式下 peer_id 为空，用 account_id 填充作为投递目标的唯一标识
-                let display_peer_id = if peer_id.is_empty() {
-                    if let Some(ref aid) = account_id {
-                        aid.clone()
-                    } else {
-                        peer_id.clone()
-                    }
-                } else {
-                    peer_id.clone()
-                };
-
                 bindings.push(BindingInfo {
                     index,
                     agent_id,
@@ -184,7 +173,7 @@ pub fn parse_bindings(config: Value) -> Result<Vec<BindingInfo>, String> {
                     routing_mode,
                     account_id,
                     peer_kind,
-                    peer_id: display_peer_id,
+                    peer_id,
                     comment,
                     binding_type,
                     acp,
@@ -716,7 +705,7 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].agent_id, "main");
         assert_eq!(result[0].channel, "feishu");
-        assert_eq!(result[0].peer_id, "default");  // accountId 填充到 peer_id
+        assert_eq!(result[0].peer_id, "");  // accountId 模式下 peer_id 为空
         assert_eq!(result[0].account_id, Some("default".to_string()));
         assert_eq!(result[0].routing_mode, Some("accountId".to_string()));
         assert_eq!(result[0].peer_kind, "dm");
