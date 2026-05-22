@@ -281,10 +281,11 @@ function syncFormFromConfig() {
   pruneAfter.value = s.maintenance?.pruneAfter ?? '7d'
   sessionIdleMinutes.value = s.idleMinutes ?? 0
 
-  // Agent 列表同步
+  // Agent 列表同步 - preserve all original fields to avoid data loss
   const list = config.agents?.list
   if (Array.isArray(list)) {
     agentList.value = list.map((item: any) => ({
+      ...item,
       id: item.id || '',
       name: item.name || item.id || '',
       workspace: item.workspace,
@@ -336,56 +337,6 @@ function syncFormFromConfig() {
   isDirty.value = false
 }
 
-/** 从表单构建 ToolsConfig */
-function buildToolsConfig(): ToolsConfig {
-  const tools: ToolsConfig = { profile: toolsProfile.value }
-
-  if (toolsAllow.value.length > 0) tools.allow = [...toolsAllow.value]
-  if (toolsDeny.value.length > 0) tools.deny = [...toolsDeny.value]
-
-  tools.web = {
-    search: {
-      enabled: webSearchEnabled.value,
-      provider: webSearchProvider.value,
-      ...(webSearchApiKey.value ? { apiKey: webSearchApiKey.value } : {}),
-    },
-    fetch: { enabled: webFetchEnabled.value },
-  }
-
-  if (sessionsVisibility.value) {
-    tools.sessions = { visibility: sessionsVisibility.value }
-  }
-
-  tools.agentToAgent = {
-    enabled: a2aEnabled.value,
-    ...(a2aAllow.value.length > 0 ? { allow: [...a2aAllow.value] } : {}),
-  }
-
-  if (sandboxAllow.value.length > 0 || sandboxDeny.value.length > 0) {
-    tools.sandbox = {
-      tools: {
-        ...(sandboxAllow.value.length > 0 ? { allow: [...sandboxAllow.value] } : {}),
-        ...(sandboxDeny.value.length > 0 ? { deny: [...sandboxDeny.value] } : {}),
-      },
-    }
-  }
-
-  return tools
-}
-
-/** 从表单构建 SessionConfig */
-function buildSessionConfig(): SessionConfig {
-  return {
-    ...(sessionIdleMinutes.value > 0 ? { idleMinutes: sessionIdleMinutes.value } : {}),
-    dmScope: dmScope.value,
-    agentToAgent: { maxPingPongTurns: maxPingPong.value },
-    maintenance: {
-      mode: maintenanceMode.value,
-      pruneAfter: pruneAfter.value,
-    },
-  }
-}
-
 /** 从表单构建 HooksConfig */
 function buildHooksConfig(): HooksConfig {
   const entries: Record<string, { enabled?: boolean }> = {}
@@ -398,39 +349,6 @@ function buildHooksConfig(): HooksConfig {
       entries,
     },
   }
-}
-
-/** 从表单构建 AgentDefaults（OpenClaw 2026.4.x+） */
-function buildAgentDefaults(): any {
-  const defaults: any = {}
-
-  if (thinkingDefault.value !== 'medium') {
-    defaults.thinkingDefault = thinkingDefault.value
-  }
-
-  if (timeoutSeconds.value !== 600) {
-    defaults.timeoutSeconds = timeoutSeconds.value
-  }
-
-  if (heartbeatEvery.value !== '30m') {
-    defaults.heartbeat = { every: heartbeatEvery.value }
-  }
-
-  if (contextPruningMode.value || contextPruningTtl.value) {
-    defaults.contextPruning = {}
-    if (contextPruningMode.value) defaults.contextPruning.mode = contextPruningMode.value
-    if (contextPruningTtl.value) defaults.contextPruning.ttl = contextPruningTtl.value
-  }
-
-  if (maxConcurrent.value !== 4) {
-    defaults.maxConcurrent = maxConcurrent.value
-  }
-
-  if (subagentsMaxConcurrent.value !== 8) {
-    defaults.subagents = { maxConcurrent: subagentsMaxConcurrent.value }
-  }
-
-  return defaults
 }
 
 // ============================================================================
@@ -447,26 +365,108 @@ async function handleRefresh() {
 async function handleSave() {
   try {
     if (!configSource.value) throw new Error('未加载配置')
+    const orig = configSource.value.config
+
     const updated: OpenClawConfig = {
-      ...configSource.value.config,
-      tools: buildToolsConfig(),
-      session: buildSessionConfig(),
-      agents: {
-        ...configSource.value.config.agents,
-        list: agentList.value,
-        defaults: buildAgentDefaults(),
+      ...orig,
+
+      // tools: merge original, only override form fields
+      tools: {
+        ...(orig.tools ?? {}),
+        profile: toolsProfile.value,
+        ...(toolsAllow.value.length > 0 ? { allow: [...toolsAllow.value] } : {}),
+        ...(toolsDeny.value.length > 0 ? { deny: [...toolsDeny.value] } : {}),
+        web: {
+          ...(orig.tools?.web ?? {}),
+          search: {
+            ...(orig.tools?.web?.search ?? {}),
+            enabled: webSearchEnabled.value,
+            provider: webSearchProvider.value,
+            ...(webSearchApiKey.value ? { apiKey: webSearchApiKey.value } : {}),
+          },
+          fetch: { enabled: webFetchEnabled.value },
+        },
+        ...(sessionsVisibility.value ? { sessions: { visibility: sessionsVisibility.value } } : {}),
+        agentToAgent: {
+          ...(orig.tools?.agentToAgent ?? {}),
+          enabled: a2aEnabled.value,
+          ...(a2aAllow.value.length > 0 ? { allow: [...a2aAllow.value] } : {}),
+        },
+        ...((sandboxAllow.value.length > 0 || sandboxDeny.value.length > 0)
+          ? {
+              sandbox: {
+                ...(orig.tools?.sandbox ?? {}),
+                tools: {
+                  ...(sandboxAllow.value.length > 0 ? { allow: [...sandboxAllow.value] } : {}),
+                  ...(sandboxDeny.value.length > 0 ? { deny: [...sandboxDeny.value] } : {}),
+                },
+              },
+            }
+          : {}),
       },
+
+      // session: merge original, override form fields
+      session: {
+        ...(orig.session ?? {}),
+        dmScope: dmScope.value,
+        ...(sessionIdleMinutes.value > 0 ? { idleMinutes: sessionIdleMinutes.value } : {}),
+        agentToAgent: {
+          ...(orig.session?.agentToAgent ?? {}),
+          maxPingPongTurns: maxPingPong.value,
+        },
+        maintenance: {
+          ...(orig.session?.maintenance ?? {}),
+          mode: maintenanceMode.value,
+          pruneAfter: pruneAfter.value,
+        },
+      },
+
+      // agents: merge original, only override list and defaults form fields
+      agents: {
+        ...(orig.agents ?? {}),
+        list: agentList.value,
+        defaults: {
+          ...(orig.agents?.defaults ?? {}),
+          thinkingDefault: thinkingDefault.value,
+          timeoutSeconds: timeoutSeconds.value,
+          ...(heartbeatEvery.value !== '30m' ? { heartbeat: { every: heartbeatEvery.value } } : {}),
+          contextPruning: {
+            ...(typeof orig.agents?.defaults?.contextPruning === 'object' ? orig.agents.defaults.contextPruning : {}),
+            ...(contextPruningMode.value ? { mode: contextPruningMode.value } : {}),
+            ...(contextPruningTtl.value ? { ttl: contextPruningTtl.value } : {}),
+          },
+          maxConcurrent: maxConcurrent.value,
+          subagents: { maxConcurrent: subagentsMaxConcurrent.value },
+        },
+      },
+
+      // hooks: managed by fixed list, rebuild is safe
       hooks: buildHooksConfig(),
-      skills: { load: { extraDirs: [...skillsExtraDirs.value] } },
+
+      // skills: merge original, only override load.extraDirs
+      skills: {
+        ...(orig.skills ?? {}),
+        load: {
+          ...(orig.skills?.load ?? {}),
+          extraDirs: [...skillsExtraDirs.value],
+        },
+      },
+
+      // messages: merge original, override ackReactionScope
       messages: {
+        ...(orig.messages ?? {}),
         ...(ackReactionScope.value ? { ackReactionScope: ackReactionScope.value } : {}),
       },
+
+      // commands: merge original, override form fields
       commands: {
+        ...(orig.commands ?? {}),
         native: commandsNative.value,
         restart: commandsRestart.value,
         ownerDisplay: commandsOwnerDisplay.value,
       },
     }
+
     await saveConfig(updated)
     isDirty.value = false
     props.showToast('success', '配置已保存')
